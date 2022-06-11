@@ -3,6 +3,8 @@ name = "simplestats"
 version = "0.1.0"
 edition = "2021"
 authors = ["Chase Vaughan <git@cvaugh.dev>"]
+repository = "https://github.com/cvaugh/SimpleStats"
+homepage = "https://cvaugh.dev/simplestats"
 
 [dependencies]
 substring = "1.4.5"

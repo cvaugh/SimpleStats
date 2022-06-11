@@ -1,5 +1,7 @@
 use chrono::DateTime;
 use chrono::FixedOffset;
+use chrono::Local;
+use chrono::TimeZone;
 use chrono::Utc;
 use std::fs;
 use substring::Substring;
@@ -226,7 +228,6 @@ fn write_output(entries: &Vec<Entry>, config: &Yaml) {
 			get_output(key.as_str().unwrap(), entries, &config).as_str(),
 		);
 	}
-	println!("{}", template);
 
 	// let output = &config["output-file"].as_str().unwrap();
 	let output = "stats.html"; // debugging
@@ -245,7 +246,7 @@ fn write_output(entries: &Vec<Entry>, config: &Yaml) {
 fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 	match key {
 		"generated-date" => {
-			return Utc::now()
+			return Local::now()
 				.format(&config["output-date-format"].as_str().unwrap())
 				.to_string();
 		}
@@ -255,7 +256,9 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 				dates.push(entry.time);
 			}
 			dates.sort_by_key(|k| k.timestamp_millis());
-			return DateTime::format(&dates[0], &config["output-date-format"].as_str().unwrap())
+			return Local
+				.from_utc_datetime(&dates[0].naive_local())
+				.format(&config["output-date-format"].as_str().unwrap())
 				.to_string();
 		}
 		"latest-visit" => {
@@ -264,11 +267,10 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 				dates.push(entry.time);
 			}
 			dates.sort_by_key(|k| k.timestamp_millis());
-			return DateTime::format(
-				&dates[dates.len() - 1],
-				&config["output-date-format"].as_str().unwrap(),
-			)
-			.to_string();
+			return Local
+				.from_utc_datetime(&dates[dates.len() - 1].naive_local())
+				.format(&config["output-date-format"].as_str().unwrap())
+				.to_string();
 		}
 		"overall-visitors" => {
 			let mut count = 0;
@@ -349,7 +351,13 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 			return String::from("!!UNIMPLEMENTED!!");
 		}
 		"footer" => {
-			return String::from("!!UNIMPLEMENTED!!");
+			return String::from(format!(
+				"<span class=\"ss-footer\"><a href=\"{}\">SimpleStats</a> {} by <a href=\"{}\">{}</a></span>",
+				env!("CARGO_PKG_REPOSITORY"),
+				env!("CARGO_PKG_VERSION"),
+				env!("CARGO_PKG_HOMEPAGE"),
+				env!("CARGO_PKG_AUTHORS")
+			));
 		}
 		_ => {
 			return String::from("(INVALID KEY)");
