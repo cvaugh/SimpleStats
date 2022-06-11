@@ -1,0 +1,67 @@
+# The path to your Apache access.log
+access-log-path: /var/log/apache2/access.log
+
+# The path to which the program should write its output.
+# Changing this from the default value is recommended.
+output-file: ~/simplestats.html
+
+# The format of dates within the access log.
+# See here for date formatting details:
+# https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/text/SimpleDateFormat.html
+input-date-format: dd/MMM/yyyy:HH:mm:ss Z
+
+# The format to use for dates in the output file.
+output-date-format: dd MMM yyyy hh:mm:ss a z
+
+# The URL of your preferred WHOIS tool.
+# %s will be replaced with the IP address.
+whois-tool: https://iplocation.io/ip/%s
+
+# Path to an HTML file to use as a template for the output.
+# Leave empty to use the default template.
+template: 
+
+# Each of the following strings will be replaced by data if it is found surrounded by {{brackets}}
+# within the template file. For example,
+#     first-visit: abc
+# would cause every instance of {{abc}} within the template to be replaced with the time of the
+# earliest entry in the log.
+# Leave the value of a key blank to disable it.
+template-replacements:
+  generated-date: generated-date
+  first-visit: first-visit
+  latest-visit: latest-visit
+  overall-visitors: overall-visitors
+  overall-visits: overall-visits
+  overall-bandwidth: overall-bandwidth
+  yearly-rows: yearly-rows
+  yearly-avg-visitors: yearly-avg-visitors
+  yearly-avg-visits: yearly-avg-visits
+  yearly-avg-bandwidth: yearly-avg-bandwidth
+  monthly-rows: monthly-rows
+  monthly-avg-visitors: monthly-avg-visitors
+  monthly-avg-visits: monthly-avg-visits
+  monthly-avg-bandwidth: monthly-avg-bandwidth
+  day-of-month-rows: day-of-month-rows
+  day-of-month-avg-visits: day-of-month-avg-visits
+  day-of-month-avg-bandwidth: day-of-month-avg-bandwidth
+  days-of-week-rows: days-of-week-rows
+  hourly-rows: hourly-rows
+  ip-rows: ip-rows
+  users-rows: users-rows
+  agents-rows: agents-rows
+  pages-rows: pages-rows
+  referers-rows: referers-rows
+  responses-rows: responses-rows
+  footer: footer
+
+# Truncate long user agents after this many characters.
+# Set to 0 to disable truncation.
+truncate-user-agent: 100
+
+# If a user agent is longer than the value defined above, this determines how the full user
+# agent can be viewed.
+#   hover: Show the full user agent when hovering over the truncated user agent
+#   click: Show the full user agent in an alert (requires JavaScript)
+#   none: Do not show the full user agent
+show-full-agent: hover
