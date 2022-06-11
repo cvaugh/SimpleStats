@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Apache Statistics ({{generated-date}})</title>
+    <style>
+body {
+  font-family: sans-serif;
+  background-color: #FAFAFA;
+  margin: 1rem 2rem;
+}
+
+th {
+  font-weight: normal;
+  background-color: rgba(34, 34, 34, 0.15);
+}
+
+th, td {
+  text-align: center;
+  margin: 2px;
+  padding: 0.05em 0.5em;
+  font-family: monospace;
+}
+
+th.visitors {
+  background-color: #EF9A9A;
+}
+
+th.visits {
+  background-color: #A5D6A7;
+}
+
+th.bandwidth {
+  background-color: #90CAF9;
+}
+
+tr:nth-child(odd) td {
+  background-color: rgba(34, 34, 34, 0.07);
+}
+
+td.ss-user-agent, td.ss-page-url, td.ss-referer {
+  text-align: left;
+}
+
+.ss-footer {
+    font-size: smaller;
+    font-family: monospace;
+}
+    </style>
+  </head>
+  <body>
+    <h1>Apache Statistics ({{generated-date}})</h1>
+    <h2>Summary</h2>
+    <h3><strong>Overall</strong></h3>
+    <table>
+      <tr>
+        <td><strong>First visit</strong></td>
+        <td>{{first-visit}}</td>
+      </tr>
+      <tr>
+        <td><strong>Latest visit</strong></td>
+        <td>{{latest-visit}}</td>
+      </tr>
+    </table>
+    <br>
+    <table>
+      <tr>
+        <th class="visitors">Unique visitors</th>
+        <th class="visits">Visits</th>
+        <th class="bandwidth">Bandwidth</th>
+      </tr>
+      <tr>
+        <td>{{overall-visitors}}</td>
+        <td>{{overall-visits}}</td>
+        <td>{{overall-bandwidth}}</td>
+      </tr>
+    </table>
+    <h3>Yearly</h2>
+    <table>
+      <tr>
+        <th>Year</th>
+        <th class="visitors">Unique visitors</th>
+        <th class="visits">Visits</th>
+        <th class="visits">Visit Percentage</th>
+        <th class="bandwidth">Bandwidth</th>
+        <th class="bandwidth">Bandwidth Percentage</th>
+      </tr>
+{{yearly-rows}}
+      <tr>
+        <th>Average</th>
+        <th>{{yearly-avg-visitors}}</th>
+        <th>{{yearly-avg-visits}}</th>
+        <th></th>
+        <th>{{yearly-avg-bandwidth}}</th>
+        <th></th>
+      </tr>
+    </table>
+    <h3>Monthly</h2>
+    <table>
+      <tr>
+        <th>Month</th>
+        <th class="visitors">Unique visitors</th>
+        <th class="visits">Visits</th>
+        <th class="visits">Visit Percentage</th>
+        <th class="bandwidth">Bandwidth</th>
+        <th class="bandwidth">Bandwidth Percentage</th>
+      </tr>
+{{monthly-rows}}
+      <tr>
+        <th>Average</th>
+        <th>{{monthly-avg-visitors}}</th>
+        <th>{{monthly-avg-visits}}</th>
+        <th></th>
+        <th>{{monthly-avg-bandwidth}}</th>
+        <th></th>
+      </tr>
+    </table>
+    <h3>Days of month</h2>
+    <table>
+      <tr>
+        <th>Day</th>
+        <th class="visits">Visits</th>
+        <th class="visits">Visit Percentage</th>
+        <th class="bandwidth">Bandwidth</th>
+        <th class="bandwidth">Bandwidth Percentage</th>
+      </tr>
+{{day-of-month-rows}}
+      <tr>
+        <th>Average</th>
+        <th>{{day-of-month-avg-visits}}</th>
+        <th></th>
+        <th>{{day-of-month-avg-bandwidth}}</th>
+        <th></th>
+      </tr>
+    </table>
+    <h3>Days of week</h2>
+    <table>
+      <tr>
+        <th>Day</th>
+        <th class="visits">Visits</th>
+        <th class="visits">Visit Percentage</th>
+        <th class="bandwidth">Bandwidth</th>
+        <th class="bandwidth">Bandwidth Percentage</th>
+      </tr>
+      <tr>
+{{days-of-week-rows}}
+      </tr>
+    </table>
+    <h3>Hourly</h2>
+    <table>
+      <tr>
+        <th>Hour</th>
+        <th class="visits">Visits</th>
+        <th class="visits">Visit Percentage</th>
+        <th class="bandwidth">Bandwidth</th>
+        <th class="bandwidth">Bandwidth Percentage</th>
+      </tr>
+{{hourly-rows}}
+    </table>
+    <br>
+    <h2>Visitors</h2>
+    <h3>IP Addresses</h2>
+    <table>
+      <tr>
+        <th class="visitors">IP Address</th>
+        <th>Whois</th>
+        <th class="visits">Visits</th>
+        <th class="visits">Visit Percentage</th>
+        <th class="bandwidth">Bandwidth</th>
+        <th class="bandwidth">Bandwidth Percentage</th>
+        <th>Latest visit</th>
+      </tr>
+{{ip-rows}}
+    </table>
+    <h3>Authenticated Users</h2>
+    <table>
+      <tr>
+        <th class="visitors">User</th>
+        <th class="visits">Visits</th>
+        <th class="visits">Visit Percentage</th>
+        <th class="bandwidth">Bandwidth</th>
+        <th class="bandwidth">Bandwidth Percentage</th>
+        <th>Latest visit</th>
+      </tr>
+{{users-rows}}
+    </table>
+    <h3>User Agents</h2>
+    <table>
+      <tr>
+        <th>Agent</th>
+        <th class="visitors">Unique visitors</th>
+        <th class="visits">Visits</th>
+        <th class="visits">Visit Percentage</th>
+        <th class="bandwidth">Bandwidth</th>
+        <th class="bandwidth">Bandwidth Percentage</th>
+        <th>Latest visit</th>
+      </tr>
+{{agents-rows}}
+    </table>
+    <br>
+    <h2>Requests</h2>
+    <h3>Pages</h2>
+    <table>
+      <tr>
+        <th>Request</th>
+        <th>URL</th>
+        <th>Protocol</th>
+        <th class="visits">Visits</th>
+        <th class="visits">Visit Percentage</th>
+        <th class="bandwidth">Bandwidth</th>
+        <th class="bandwidth">Bandwidth Percentage</th>
+        <th class="bandwidth">Average size</th>
+      </tr>
+{{pages-rows}}
+    </table>
+    <h3>Referers</h2>
+    <table>
+      <tr>
+        <th>Origin</th>
+        <th class="visits">Visits</th>
+        <th class="visits">Visit Percentage</th>
+        <th class="bandwidth">Bandwidth</th>
+        <th class="bandwidth">Bandwidth Percentage</th>
+      </tr>
+{{referers-rows}}
+    </table>
+    <h3>Responses</h2>
+    <table>
+      <tr>
+        <th>Code</th>
+        <th class="visits">Visits</th>
+        <th class="visits">Visit Percentage</th>
+        <th class="bandwidth">Bandwidth</th>
+        <th class="bandwidth">Bandwidth Percentage</th>
+      </tr>
+{{responses-rows}}
+    </table>
+    <br>
+    <p>{{footer}}</p>
+  </body>
+</html>
