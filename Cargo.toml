@@ -4,10 +4,12 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Chase Vaughan <git@cvaugh.dev>"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 substring = "1.4.5"
+chrono = "0.4"
+
+[dependencies.yaml-rust]
+git = "https://github.com/chyh1990/yaml-rust.git"
 
 [[bin]]
 name = "simplestats"
