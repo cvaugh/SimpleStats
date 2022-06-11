@@ -8,14 +8,14 @@ output-file: ~/simplestats.html
 # The format of dates within the access log.
 # See here for date formatting details:
 # https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/text/SimpleDateFormat.html
-input-date-format: dd/MMM/yyyy:HH:mm:ss Z
+input-date-format: "%d/%b/%Y:%H:%M:%S %z"
 
 # The format to use for dates in the output file.
-output-date-format: dd MMM yyyy hh:mm:ss a z
+output-date-format: "%e %b %Y %I:%M:%S %p"
 
 # The URL of your preferred WHOIS tool.
 # %s will be replaced with the IP address.
-whois-tool: https://iplocation.io/ip/%s
+whois-tool: "https://iplocation.io/ip/%s"
 
 # Path to an HTML file to use as a template for the output.
 # Leave empty to use the default template.
