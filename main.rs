@@ -2,7 +2,6 @@ use chrono::DateTime;
 use chrono::FixedOffset;
 use chrono::Local;
 use chrono::TimeZone;
-use chrono::Utc;
 use std::fs;
 use substring::Substring;
 use yaml_rust::Yaml;
@@ -41,8 +40,6 @@ fn main() {
 fn read_log(path: String, config: &Yaml) {
 	let contents = fs::read_to_string(path).expect("Failed to read file");
 
-	let mut debug_counter: i32 = 0;
-
 	let mut entries = Vec::new();
 
 	for line in contents.split("\n") {
@@ -54,12 +51,6 @@ fn read_log(path: String, config: &Yaml) {
 			line.chars().collect(),
 			config,
 		));
-
-		debug_counter += 1;
-		if debug_counter > 3 {
-			// XXX debug statement
-			break;
-		}
 	}
 	write_output(&entries, config);
 }
@@ -244,6 +235,10 @@ fn write_output(entries: &Vec<Entry>, config: &Yaml) {
 }
 
 fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
+	let mut total_size = 0usize;
+	for entry in entries {
+		total_size += entry.size as usize;
+	}
 	match key {
 		"generated-date" => {
 			return Local::now()
@@ -287,11 +282,7 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 			return entries.len().to_string();
 		}
 		"overall-bandwidth" => {
-			let mut size = 0;
-			for entry in entries {
-				size += entry.size;
-			}
-			return human_readable_bytes(size);
+			return human_readable_bytes(total_size);
 		}
 		"yearly-rows" => {
 			return String::from("!!UNIMPLEMENTED!!");
@@ -348,7 +339,28 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 			return String::from("!!UNIMPLEMENTED!!");
 		}
 		"responses-rows" => {
-			return String::from("!!UNIMPLEMENTED!!");
+			let mut unique: Vec<String> = Vec::new();
+			for entry in entries {
+				if !unique.contains(&entry.response) {
+					unique.push(entry.response.clone());
+				}
+			}
+			let mut lines: Vec<String> = Vec::new();
+			for response in unique {
+				let mut count = 0;
+				let mut bw = 0usize;
+				for entry in entries {
+					if entry.response.eq(&response) {
+						count += 1;
+						bw += entry.size as usize;
+					}
+				}
+				lines.push(format!(
+					"<tr><td><abbr title=\"{}\">{}</abbr></td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
+					"!!UNIMPLEMENTED!!", response, count, format_percent(count, entries.len()), human_readable_bytes(bw), format_percent(bw, total_size)
+				));
+			}
+			return lines.join("");
 		}
 		"footer" => {
 			return String::from(format!(
@@ -364,8 +376,8 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 		}
 	}
 
-	fn human_readable_bytes(bytes: i32) -> String {
-		let mut b = f64::from(bytes);
+	fn human_readable_bytes(bytes: usize) -> String {
+		let mut b = bytes as f64;
 		let mut magnitude: usize = 0;
 		while b > 1000f64 {
 			b /= 1000f64;
@@ -380,5 +392,9 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 				['k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y'][magnitude - 1]
 			));
 		}
+	}
+
+	fn format_percent(part: usize, whole: usize) -> String {
+		return format!("{:.2}%", ((part as f64) / (whole as f64)) * 100f64);
 	}
 }
