@@ -9,6 +9,7 @@ homepage = "https://cvaugh.dev/simplestats"
 [dependencies]
 substring = "1.4.5"
 chrono = "0.4"
+linked-hash-map = "0.5.4"
 
 [dependencies.yaml-rust]
 git = "https://github.com/chyh1990/yaml-rust.git"

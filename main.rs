@@ -2,6 +2,7 @@ use chrono::DateTime;
 use chrono::FixedOffset;
 use chrono::Local;
 use chrono::TimeZone;
+use linked_hash_map::LinkedHashMap;
 use std::fs;
 use substring::Substring;
 use yaml_rust::Yaml;
@@ -333,31 +334,100 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 			return String::from("!!UNIMPLEMENTED!!");
 		}
 		"pages-rows" => {
-			return String::from("!!UNIMPLEMENTED!!");
-		}
-		"referers-rows" => {
-			return String::from("!!UNIMPLEMENTED!!");
-		}
-		"responses-rows" => {
-			let mut unique: Vec<String> = Vec::new();
+			let mut unique: LinkedHashMap<String, i32> = LinkedHashMap::new();
 			for entry in entries {
-				if !unique.contains(&entry.response) {
-					unique.push(entry.response.clone());
+				if !unique.contains_key(&entry.request) {
+					let mut count: i32 = 0;
+					for e in entries {
+						if e.request.eq(&entry.request) {
+							count += 1;
+						}
+					}
+					unique.insert(entry.request.clone(), count);
 				}
 			}
+			unique = sort_map(unique);
 			let mut lines: Vec<String> = Vec::new();
-			for response in unique {
-				let mut count = 0;
+			for (request, count) in unique {
+				let mut bw = 0usize;
+				for entry in entries {
+					if entry.request.eq(&request) {
+						bw += entry.size as usize;
+					}
+				}
+				let split: Vec<&str> = request.split(" ").collect();
+				lines.push(format!(
+					"<tr><td>{}</td><td class=\"ss-page-url\">{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
+					get_or_none(&split[0]),
+					(split.len() > 1).then(|| split[1]).unwrap_or("(none)"),
+					(split.len() > 2).then(|| split[2]).unwrap_or("(none)"),
+					count,
+					format_percent(count as usize, entries.len()),
+					human_readable_bytes(bw),
+					format_percent(bw, total_size),
+					human_readable_bytes((bw / entries.len()) as usize)
+				));
+			}
+			return lines.join("");
+		}
+		"referers-rows" => {
+			let mut unique: LinkedHashMap<String, i32> = LinkedHashMap::new();
+			for entry in entries {
+				if !unique.contains_key(&entry.referer) {
+					let mut count: i32 = 0;
+					for e in entries {
+						if e.referer.eq(&entry.referer) {
+							count += 1;
+						}
+					}
+					unique.insert(entry.referer.clone(), count);
+				}
+			}
+			unique = sort_map(unique);
+			let mut lines: Vec<String> = Vec::new();
+			for (referer, count) in unique {
+				let mut bw = 0usize;
+				for entry in entries {
+					if entry.referer.eq(&referer) {
+						bw += entry.size as usize;
+					}
+				}
+				lines.push(format!(
+					"<tr><td class=\"ss-referer\">{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
+					get_or_none(&referer),
+					count,
+					format_percent(count as usize, entries.len()),
+					human_readable_bytes(bw),
+					format_percent(bw, total_size)
+				));
+			}
+			return lines.join("");
+		}
+		"responses-rows" => {
+			let mut unique: LinkedHashMap<String, i32> = LinkedHashMap::new();
+			for entry in entries {
+				if !unique.contains_key(&entry.response) {
+					let mut count: i32 = 0;
+					for e in entries {
+						if e.response.eq(&entry.response) {
+							count += 1;
+						}
+					}
+					unique.insert(entry.response.clone(), count);
+				}
+			}
+			unique = sort_map(unique);
+			let mut lines: Vec<String> = Vec::new();
+			for (response, count) in unique {
 				let mut bw = 0usize;
 				for entry in entries {
 					if entry.response.eq(&response) {
-						count += 1;
 						bw += entry.size as usize;
 					}
 				}
 				lines.push(format!(
 					"<tr><td><abbr title=\"{}\">{}</abbr></td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
-					"!!UNIMPLEMENTED!!", response, count, format_percent(count, entries.len()), human_readable_bytes(bw), format_percent(bw, total_size)
+					"!!UNIMPLEMENTED!!", response, count, format_percent(count as usize, entries.len()), human_readable_bytes(bw), format_percent(bw, total_size)
 				));
 			}
 			return lines.join("");
@@ -396,5 +466,22 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 
 	fn format_percent(part: usize, whole: usize) -> String {
 		return format!("{:.2}%", ((part as f64) / (whole as f64)) * 100f64);
+	}
+
+	fn sort_map(map: LinkedHashMap<String, i32>) -> LinkedHashMap<String, i32> {
+		let mut v: Vec<(&String, &i32)> = map.iter().collect();
+		v.sort_by(|a, b| b.1.cmp(a.1));
+		let mut m: LinkedHashMap<String, i32> = LinkedHashMap::new();
+		for entry in v {
+			m.insert(entry.0.to_string(), *entry.1);
+		}
+		return m;
+	}
+
+	fn get_or_none(key: &str) -> &str {
+		match key {
+			"-" => return "(none)",
+			_ => return key,
+		}
 	}
 }
