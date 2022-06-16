@@ -3,6 +3,8 @@ use chrono::FixedOffset;
 use chrono::Local;
 use chrono::TimeZone;
 use linked_hash_map::LinkedHashMap;
+use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fs;
 use substring::Substring;
 use yaml_rust::Yaml;
@@ -180,6 +182,7 @@ fn parse_log_line(original: String, line: Vec<char>, config: &Yaml) -> Entry {
 			}
 		}
 	}
+	agent.end = i - 1;
 
 	let entry = Entry {
 		ip: original.substring(ip.start, ip.end).to_string(),
@@ -286,52 +289,584 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 			return human_readable_bytes(total_size);
 		}
 		"yearly-rows" => {
-			return String::from("!!UNIMPLEMENTED!!");
+			let mut years: HashMap<i32, i32> = HashMap::new();
+			let mut sizes: HashMap<i32, usize> = HashMap::new();
+			let mut unique: HashMap<i32, i32> = HashMap::new();
+			for entry in entries {
+				let year = Local
+					.from_utc_datetime(&entry.time.naive_utc())
+					.format("%Y")
+					.to_string()
+					.parse::<i32>()
+					.unwrap();
+				let mut count = 0;
+				let mut size: usize = 0;
+				let mut u: HashSet<&str> = HashSet::new();
+				for e in entries {
+					if year
+						== Local
+							.from_utc_datetime(&e.time.naive_utc())
+							.format("%Y")
+							.to_string()
+							.parse::<i32>()
+							.unwrap()
+					{
+						count += 1;
+						size += e.size as usize;
+						u.insert(&e.ip);
+					}
+				}
+				years.insert(year, count);
+				sizes.insert(year, size);
+				unique.insert(year, u.len() as i32);
+			}
+			let mut lines: Vec<String> = Vec::new();
+			for (year, count) in years {
+				lines.push(format!(
+					"<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+					year,
+					unique[&year],
+					count,
+					format_percent(count as usize, entries.len()),
+					human_readable_bytes(sizes[&year]),
+					format_percent(sizes[&year], total_size)
+				));
+			}
+			return lines.join("");
 		}
 		"yearly-avg-visitors" => {
-			return String::from("!!UNIMPLEMENTED!!");
+			let mut unique: HashSet<&str> = HashSet::new();
+			let mut years: HashSet<i32> = HashSet::new();
+			for entry in entries {
+				let year = Local
+					.from_utc_datetime(&entry.time.naive_utc())
+					.format("%Y")
+					.to_string()
+					.parse::<i32>()
+					.unwrap();
+				years.insert(year);
+				unique.insert(&entry.ip);
+			}
+			return (unique.len() / years.len()).to_string();
 		}
 		"yearly-avg-visits" => {
-			return String::from("!!UNIMPLEMENTED!!");
+			let mut years: HashSet<i32> = HashSet::new();
+			for entry in entries {
+				let year = Local
+					.from_utc_datetime(&entry.time.naive_utc())
+					.format("%Y")
+					.to_string()
+					.parse::<i32>()
+					.unwrap();
+				years.insert(year);
+			}
+			return (entries.len() / years.len()).to_string();
 		}
 		"yearly-avg-bandwidth" => {
-			return String::from("!!UNIMPLEMENTED!!");
+			let mut years: HashMap<i32, usize> = HashMap::new();
+			for entry in entries {
+				let year = Local
+					.from_utc_datetime(&entry.time.naive_utc())
+					.format("%Y")
+					.to_string()
+					.parse::<i32>()
+					.unwrap();
+				let mut size: usize = 0;
+				for e in entries {
+					if year
+						== Local
+							.from_utc_datetime(&e.time.naive_utc())
+							.format("%Y")
+							.to_string()
+							.parse::<i32>()
+							.unwrap()
+					{
+						size += e.size as usize;
+					}
+				}
+				years.insert(year, size);
+			}
+			let mut sum: usize = 0;
+			for (_year, size) in &years {
+				sum += size;
+			}
+			return human_readable_bytes((sum / years.len()) as usize);
 		}
 		"monthly-rows" => {
-			return String::from("!!UNIMPLEMENTED!!");
+			let month_names = vec![
+				"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+			];
+			let mut months: HashMap<i32, i32> = HashMap::new();
+			let mut sizes: HashMap<i32, usize> = HashMap::new();
+			let mut unique: HashMap<i32, i32> = HashMap::new();
+			for entry in entries {
+				let month = Local
+					.from_utc_datetime(&entry.time.naive_utc())
+					.format("%m")
+					.to_string()
+					.parse::<i32>()
+					.unwrap();
+				let mut count = 0;
+				let mut size: usize = 0;
+				let mut u: HashSet<&str> = HashSet::new();
+				for e in entries {
+					if month
+						== Local
+							.from_utc_datetime(&e.time.naive_utc())
+							.format("%m")
+							.to_string()
+							.parse::<i32>()
+							.unwrap()
+					{
+						count += 1;
+						size += e.size as usize;
+						u.insert(&e.ip);
+					}
+				}
+				months.insert(month, count);
+				sizes.insert(month, size);
+				unique.insert(month, u.len() as i32);
+			}
+			let mut lines: Vec<String> = Vec::new();
+			for month in 1..13 {
+				if !months.contains_key(&month) {
+					months.insert(month, 0);
+					sizes.insert(month, 0);
+					unique.insert(month, 0);
+				}
+				lines.push(format!(
+					"<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+					month_names[(month - 1) as usize],
+					unique[&month],
+					months[&month],
+					format_percent(months[&month] as usize, entries.len()),
+					human_readable_bytes(sizes[&month]),
+					format_percent(sizes[&month], total_size)
+				));
+			}
+			return lines.join("");
 		}
 		"monthly-avg-visitors" => {
-			return String::from("!!UNIMPLEMENTED!!");
+			let mut unique: HashSet<&str> = HashSet::new();
+			let mut months: HashSet<i32> = HashSet::new();
+			for entry in entries {
+				let month = Local
+					.from_utc_datetime(&entry.time.naive_utc())
+					.format("%m")
+					.to_string()
+					.parse::<i32>()
+					.unwrap();
+				months.insert(month);
+				unique.insert(&entry.ip);
+			}
+			return (unique.len() / months.len()).to_string();
 		}
 		"monthly-avg-visits" => {
-			return String::from("!!UNIMPLEMENTED!!");
+			let mut months: HashSet<i32> = HashSet::new();
+			for entry in entries {
+				let month = Local
+					.from_utc_datetime(&entry.time.naive_utc())
+					.format("%m")
+					.to_string()
+					.parse::<i32>()
+					.unwrap();
+				months.insert(month);
+			}
+			return (entries.len() / months.len()).to_string();
 		}
 		"monthly-avg-bandwidth" => {
-			return String::from("!!UNIMPLEMENTED!!");
+			let mut months: HashMap<i32, usize> = HashMap::new();
+			for entry in entries {
+				let month = Local
+					.from_utc_datetime(&entry.time.naive_utc())
+					.format("%m")
+					.to_string()
+					.parse::<i32>()
+					.unwrap();
+				let mut size: usize = 0;
+				for e in entries {
+					if month
+						== Local
+							.from_utc_datetime(&e.time.naive_utc())
+							.format("%m")
+							.to_string()
+							.parse::<i32>()
+							.unwrap()
+					{
+						size += e.size as usize;
+					}
+				}
+				months.insert(month, size);
+			}
+			let mut sum: usize = 0;
+			for (_month, size) in &months {
+				sum += size;
+			}
+			return human_readable_bytes((sum / months.len()) as usize);
 		}
 		"day-of-month-rows" => {
-			return String::from("!!UNIMPLEMENTED!!");
+			let mut days: HashMap<i32, i32> = HashMap::new();
+			let mut sizes: HashMap<i32, usize> = HashMap::new();
+			for entry in entries {
+				let day = Local
+					.from_utc_datetime(&entry.time.naive_utc())
+					.format("%d")
+					.to_string()
+					.parse::<i32>()
+					.unwrap();
+				let mut count = 0;
+				let mut size: usize = 0;
+				for e in entries {
+					if day
+						== Local
+							.from_utc_datetime(&e.time.naive_utc())
+							.format("%d")
+							.to_string()
+							.parse::<i32>()
+							.unwrap()
+					{
+						count += 1;
+						size += e.size as usize;
+					}
+				}
+				days.insert(day, count);
+				sizes.insert(day, size);
+			}
+			let mut lines: Vec<String> = Vec::new();
+			for day in 1..32 {
+				if !days.contains_key(&day) {
+					days.insert(day, 0);
+					sizes.insert(day, 0);
+				}
+				lines.push(format!(
+					"<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+					day,
+					days[&day],
+					format_percent(days[&day] as usize, entries.len()),
+					human_readable_bytes(sizes[&day]),
+					format_percent(sizes[&day], total_size)
+				));
+			}
+			return lines.join("");
 		}
 		"day-of-month-avg-visits" => {
-			return String::from("!!UNIMPLEMENTED!!");
+			let mut days: HashSet<i32> = HashSet::new();
+			for entry in entries {
+				let day = Local
+					.from_utc_datetime(&entry.time.naive_utc())
+					.format("%d")
+					.to_string()
+					.parse::<i32>()
+					.unwrap();
+				days.insert(day);
+			}
+			return (entries.len() / days.len()).to_string();
 		}
 		"day-of-month-avg-bandwidth" => {
-			return String::from("!!UNIMPLEMENTED!!");
+			let mut days: HashMap<i32, usize> = HashMap::new();
+			for entry in entries {
+				let day = Local
+					.from_utc_datetime(&entry.time.naive_utc())
+					.format("%d")
+					.to_string()
+					.parse::<i32>()
+					.unwrap();
+				let mut size: usize = 0;
+				for e in entries {
+					if day
+						== Local
+							.from_utc_datetime(&e.time.naive_utc())
+							.format("%d")
+							.to_string()
+							.parse::<i32>()
+							.unwrap()
+					{
+						size += e.size as usize;
+					}
+				}
+				days.insert(day, size);
+			}
+			let mut sum: usize = 0;
+			for (_day, size) in &days {
+				sum += size;
+			}
+			return human_readable_bytes((sum / days.len()) as usize);
 		}
 		"days-of-week-rows" => {
-			return String::from("!!UNIMPLEMENTED!!");
+			let day_names = vec!["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+			let mut days: HashMap<i32, i32> = HashMap::new();
+			let mut sizes: HashMap<i32, usize> = HashMap::new();
+			for entry in entries {
+				let day = Local
+					.from_utc_datetime(&entry.time.naive_utc())
+					.format("%w")
+					.to_string()
+					.parse::<i32>()
+					.unwrap();
+				let mut count = 0;
+				let mut size: usize = 0;
+				for e in entries {
+					if day
+						== Local
+							.from_utc_datetime(&e.time.naive_utc())
+							.format("%w")
+							.to_string()
+							.parse::<i32>()
+							.unwrap()
+					{
+						count += 1;
+						size += e.size as usize;
+					}
+				}
+				days.insert(day, count);
+				sizes.insert(day, size);
+			}
+			let mut lines: Vec<String> = Vec::new();
+			for day in 0..7 {
+				if !days.contains_key(&day) {
+					days.insert(day, 0);
+					sizes.insert(day, 0);
+				}
+				lines.push(format!(
+					"<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+					day_names[day as usize],
+					days[&day],
+					format_percent(days[&day] as usize, entries.len()),
+					human_readable_bytes(sizes[&day]),
+					format_percent(sizes[&day], total_size)
+				));
+			}
+			return lines.join("");
 		}
 		"hourly-rows" => {
-			return String::from("!!UNIMPLEMENTED!!");
+			let mut hours: HashMap<i32, i32> = HashMap::new();
+			let mut sizes: HashMap<i32, usize> = HashMap::new();
+			for entry in entries {
+				let hour = Local
+					.from_utc_datetime(&entry.time.naive_utc())
+					.format("%H")
+					.to_string()
+					.parse::<i32>()
+					.unwrap();
+				let mut count = 0;
+				let mut size: usize = 0;
+				for e in entries {
+					if hour
+						== Local
+							.from_utc_datetime(&e.time.naive_utc())
+							.format("%H")
+							.to_string()
+							.parse::<i32>()
+							.unwrap()
+					{
+						count += 1;
+						size += e.size as usize;
+					}
+				}
+				hours.insert(hour, count);
+				sizes.insert(hour, size);
+			}
+			let mut lines: Vec<String> = Vec::new();
+			for hour in 0..24 {
+				if !hours.contains_key(&hour) {
+					hours.insert(hour, 0);
+					sizes.insert(hour, 0);
+				}
+				let h: String;
+				if hour == 0 || hour == 12 {
+					h = String::from("12");
+				} else if hour < 12 {
+					h = hour.to_string();
+				} else {
+					h = (hour - 12).to_string();
+				}
+				lines.push(format!(
+					"<tr><td>{} {}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+					format!("{:\u{00A0}>2}", h),
+					(hour < 12).then(|| "AM").unwrap_or("PM"),
+					hours[&hour],
+					format_percent(hours[&hour] as usize, entries.len()),
+					human_readable_bytes(sizes[&hour]),
+					format_percent(sizes[&hour], total_size)
+				));
+			}
+			return lines.join("");
 		}
 		"ip-rows" => {
-			return String::from("!!UNIMPLEMENTED!!");
+			let mut unique: LinkedHashMap<String, i32> = LinkedHashMap::new();
+			for entry in entries {
+				if !unique.contains_key(&entry.ip) {
+					let mut count: i32 = 0;
+					for e in entries {
+						if e.ip.eq(&entry.ip) {
+							count += 1;
+						}
+					}
+					unique.insert(entry.ip.clone(), count);
+				}
+			}
+			unique = sort_map(unique);
+			let mut lines: Vec<String> = Vec::new();
+			for (ip, count) in unique {
+				let mut bw = 0usize;
+				for entry in entries {
+					if entry.ip.eq(&ip) {
+						bw += entry.size as usize;
+					}
+				}
+				let mut dates: Vec<DateTime<FixedOffset>> = Vec::new();
+				for entry in entries {
+					if entry.ip.eq(&ip) {
+						dates.push(entry.time);
+					}
+				}
+				dates.sort_by_key(|k| k.timestamp_millis());
+				lines.push(format!(
+					"<tr><td>{}</td><td><a href=\"{}\">View</a></td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
+					ip,
+					config["whois-tool"]
+					.as_str()
+					.unwrap()
+					.replace("<address>", &ip),
+					count,
+					format_percent(count as usize, entries.len()),
+					human_readable_bytes(bw),
+					format_percent(bw, total_size),
+					Local
+						.from_utc_datetime(&dates[dates.len() - 1].naive_local())
+						.format(&config["output-date-format"].as_str().unwrap())
+						.to_string()
+				));
+			}
+			return lines.join("");
 		}
 		"users-rows" => {
-			return String::from("!!UNIMPLEMENTED!!");
+			let mut unique: LinkedHashMap<String, i32> = LinkedHashMap::new();
+			for entry in entries {
+				if !unique.contains_key(&entry.user) {
+					let mut count: i32 = 0;
+					for e in entries {
+						if e.user.eq(&entry.user) {
+							count += 1;
+						}
+					}
+					unique.insert(entry.user.clone(), count);
+				}
+			}
+			unique = sort_map(unique);
+			let mut lines: Vec<String> = Vec::new();
+			for (user, count) in unique {
+				let mut bw = 0usize;
+				for entry in entries {
+					if entry.user.eq(&user) {
+						bw += entry.size as usize;
+					}
+				}
+				let mut dates: Vec<DateTime<FixedOffset>> = Vec::new();
+				for entry in entries {
+					if entry.user.eq(&user) {
+						dates.push(entry.time);
+					}
+				}
+				dates.sort_by_key(|k| k.timestamp_millis());
+				lines.push(format!(
+					"<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
+					get_or_else(&user, "unauthenticated"),
+					count,
+					format_percent(count as usize, entries.len()),
+					human_readable_bytes(bw),
+					format_percent(bw, total_size),
+					Local
+						.from_utc_datetime(&dates[dates.len() - 1].naive_local())
+						.format(&config["output-date-format"].as_str().unwrap())
+						.to_string()
+				));
+			}
+			return lines.join("");
 		}
 		"agents-rows" => {
-			return String::from("!!UNIMPLEMENTED!!");
+			let mut unique_agents: LinkedHashMap<String, i32> = LinkedHashMap::new();
+			for entry in entries {
+				if !unique_agents.contains_key(&entry.agent) {
+					let mut count: i32 = 0;
+					for e in entries {
+						if e.agent.eq(&entry.agent) {
+							count += 1;
+						}
+					}
+					unique_agents.insert(entry.agent.clone(), count);
+				}
+			}
+			unique_agents = sort_map(unique_agents);
+			let mut lines: Vec<String> = Vec::new();
+			for (agent, count) in unique_agents {
+				let mut unique_visitors: HashSet<&str> = HashSet::new();
+				for entry in entries {
+					if entry.agent.eq(&agent) {
+						unique_visitors.insert(&entry.ip);
+					}
+				}
+				let mut bw = 0usize;
+				for entry in entries {
+					if entry.agent.eq(&agent) {
+						bw += entry.size as usize;
+					}
+				}
+				let mut dates: Vec<DateTime<FixedOffset>> = Vec::new();
+				for entry in entries {
+					if entry.agent.eq(&agent) {
+						dates.push(entry.time);
+					}
+				}
+				dates.sort_by_key(|k| k.timestamp_millis());
+				let truncate = config["truncate-user-agent"].as_i64().unwrap() as usize;
+				if truncate != 0 && agent.len() > truncate {
+					let a = &get_or_none(&agent)[..truncate];
+					let show_agent: String;
+					match config["show-full-agent"]
+						.as_str()
+						.unwrap()
+						.to_lowercase()
+						.as_str()
+					{
+						"hover" => {
+							show_agent = format!("<abbr title=\"{}\">{}...</abbr>", agent, a);
+						}
+						"click" => {
+							show_agent = format!(
+								"<abbr onclick='javascript:prompt(\"Full user agent:\", \"{}\");'
+							title=\"Click to display full user agent\">{}...</abbr>",
+								agent, a
+							);
+						}
+						_ => {
+							show_agent = format!("{}...", a);
+						}
+					}
+					lines.push(format!(
+						"<tr><td class=\"ss-user-agent\">{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
+						&show_agent,
+						unique_visitors.len(),
+						count,
+						format_percent(count as usize, entries.len()),
+						human_readable_bytes(bw),
+						format_percent(bw, total_size),
+						Local.from_utc_datetime(&dates[dates.len() - 1].naive_local()).format(&config["output-date-format"].as_str().unwrap()).to_string()
+					));
+				} else {
+					lines.push(format!(
+						"<tr><td class=\"ss-user-agent\">{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
+						get_or_none(&agent),
+						unique_visitors.len(),
+						count,
+						format_percent(count as usize, entries.len()),
+						human_readable_bytes(bw),
+						format_percent(bw, total_size),
+						Local.from_utc_datetime(&dates[dates.len() - 1].naive_local()).format(&config["output-date-format"].as_str().unwrap()).to_string()
+					));
+				}
+			}
+			return lines.join("");
 		}
 		"pages-rows" => {
 			let mut unique: LinkedHashMap<String, i32> = LinkedHashMap::new();
@@ -482,6 +1017,13 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 		match key {
 			"-" => return "(none)",
 			_ => return key,
+		}
+	}
+
+	fn get_or_else(key: &str, other: &str) -> String {
+		match key {
+			"-" => return format!("({})", other),
+			_ => return String::from(key),
 		}
 	}
 }
