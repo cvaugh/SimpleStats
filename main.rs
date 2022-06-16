@@ -335,62 +335,13 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 			return lines.join("");
 		}
 		"yearly-avg-visitors" => {
-			let mut unique: HashSet<&str> = HashSet::new();
-			let mut years: HashSet<i32> = HashSet::new();
-			for entry in entries {
-				let year = Local
-					.from_utc_datetime(&entry.time.naive_utc())
-					.format("%Y")
-					.to_string()
-					.parse::<i32>()
-					.unwrap();
-				years.insert(year);
-				unique.insert(&entry.ip);
-			}
-			return (unique.len() / years.len()).to_string();
+			return get_average_visitors(entries, "%Y");
 		}
 		"yearly-avg-visits" => {
-			let mut years: HashSet<i32> = HashSet::new();
-			for entry in entries {
-				let year = Local
-					.from_utc_datetime(&entry.time.naive_utc())
-					.format("%Y")
-					.to_string()
-					.parse::<i32>()
-					.unwrap();
-				years.insert(year);
-			}
-			return (entries.len() / years.len()).to_string();
+			return get_average_visits(entries, "%Y");
 		}
 		"yearly-avg-bandwidth" => {
-			let mut years: HashMap<i32, usize> = HashMap::new();
-			for entry in entries {
-				let year = Local
-					.from_utc_datetime(&entry.time.naive_utc())
-					.format("%Y")
-					.to_string()
-					.parse::<i32>()
-					.unwrap();
-				let mut size: usize = 0;
-				for e in entries {
-					if year
-						== Local
-							.from_utc_datetime(&e.time.naive_utc())
-							.format("%Y")
-							.to_string()
-							.parse::<i32>()
-							.unwrap()
-					{
-						size += e.size as usize;
-					}
-				}
-				years.insert(year, size);
-			}
-			let mut sum: usize = 0;
-			for (_year, size) in &years {
-				sum += size;
-			}
-			return human_readable_bytes((sum / years.len()) as usize);
+			return get_average_bandwidth(entries, "%Y");
 		}
 		"monthly-rows" => {
 			let month_names = vec![
@@ -447,62 +398,13 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 			return lines.join("");
 		}
 		"monthly-avg-visitors" => {
-			let mut unique: HashSet<&str> = HashSet::new();
-			let mut months: HashSet<i32> = HashSet::new();
-			for entry in entries {
-				let month = Local
-					.from_utc_datetime(&entry.time.naive_utc())
-					.format("%m")
-					.to_string()
-					.parse::<i32>()
-					.unwrap();
-				months.insert(month);
-				unique.insert(&entry.ip);
-			}
-			return (unique.len() / months.len()).to_string();
+			return get_average_visitors(entries, "%m");
 		}
 		"monthly-avg-visits" => {
-			let mut months: HashSet<i32> = HashSet::new();
-			for entry in entries {
-				let month = Local
-					.from_utc_datetime(&entry.time.naive_utc())
-					.format("%m")
-					.to_string()
-					.parse::<i32>()
-					.unwrap();
-				months.insert(month);
-			}
-			return (entries.len() / months.len()).to_string();
+			return get_average_visits(entries, "%m");
 		}
 		"monthly-avg-bandwidth" => {
-			let mut months: HashMap<i32, usize> = HashMap::new();
-			for entry in entries {
-				let month = Local
-					.from_utc_datetime(&entry.time.naive_utc())
-					.format("%m")
-					.to_string()
-					.parse::<i32>()
-					.unwrap();
-				let mut size: usize = 0;
-				for e in entries {
-					if month
-						== Local
-							.from_utc_datetime(&e.time.naive_utc())
-							.format("%m")
-							.to_string()
-							.parse::<i32>()
-							.unwrap()
-					{
-						size += e.size as usize;
-					}
-				}
-				months.insert(month, size);
-			}
-			let mut sum: usize = 0;
-			for (_month, size) in &months {
-				sum += size;
-			}
-			return human_readable_bytes((sum / months.len()) as usize);
+			return get_average_bandwidth(entries, "%m");
 		}
 		"day-of-month-rows" => {
 			let mut days: HashMap<i32, i32> = HashMap::new();
@@ -550,47 +452,10 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 			return lines.join("");
 		}
 		"day-of-month-avg-visits" => {
-			let mut days: HashSet<i32> = HashSet::new();
-			for entry in entries {
-				let day = Local
-					.from_utc_datetime(&entry.time.naive_utc())
-					.format("%d")
-					.to_string()
-					.parse::<i32>()
-					.unwrap();
-				days.insert(day);
-			}
-			return (entries.len() / days.len()).to_string();
+			return get_average_visits(entries, "%d");
 		}
 		"day-of-month-avg-bandwidth" => {
-			let mut days: HashMap<i32, usize> = HashMap::new();
-			for entry in entries {
-				let day = Local
-					.from_utc_datetime(&entry.time.naive_utc())
-					.format("%d")
-					.to_string()
-					.parse::<i32>()
-					.unwrap();
-				let mut size: usize = 0;
-				for e in entries {
-					if day
-						== Local
-							.from_utc_datetime(&e.time.naive_utc())
-							.format("%d")
-							.to_string()
-							.parse::<i32>()
-							.unwrap()
-					{
-						size += e.size as usize;
-					}
-				}
-				days.insert(day, size);
-			}
-			let mut sum: usize = 0;
-			for (_day, size) in &days {
-				sum += size;
-			}
-			return human_readable_bytes((sum / days.len()) as usize);
+			return get_average_bandwidth(entries, "%d");
 		}
 		"days-of-week-rows" => {
 			let day_names = vec!["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -1025,5 +890,66 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 			"-" => return format!("({})", other),
 			_ => return String::from(key),
 		}
+	}
+
+	fn get_average_visitors(entries: &Vec<Entry>, date_format: &str) -> String {
+		let mut unique: HashSet<&str> = HashSet::new();
+		let mut keys: HashSet<i32> = HashSet::new();
+		for entry in entries {
+			let key = Local
+				.from_utc_datetime(&entry.time.naive_utc())
+				.format(date_format)
+				.to_string()
+				.parse::<i32>()
+				.unwrap();
+			keys.insert(key);
+			unique.insert(&entry.ip);
+		}
+		return (unique.len() / keys.len()).to_string();
+	}
+
+	fn get_average_visits(entries: &Vec<Entry>, date_format: &str) -> String {
+		let mut keys: HashSet<i32> = HashSet::new();
+		for entry in entries {
+			let key = Local
+				.from_utc_datetime(&entry.time.naive_utc())
+				.format(date_format)
+				.to_string()
+				.parse::<i32>()
+				.unwrap();
+			keys.insert(key);
+		}
+		return (entries.len() / keys.len()).to_string();
+	}
+
+	fn get_average_bandwidth(entries: &Vec<Entry>, date_format: &str) -> String {
+		let mut keys: HashMap<i32, usize> = HashMap::new();
+		for entry in entries {
+			let key = Local
+				.from_utc_datetime(&entry.time.naive_utc())
+				.format(date_format)
+				.to_string()
+				.parse::<i32>()
+				.unwrap();
+			let mut size: usize = 0;
+			for e in entries {
+				if key
+					== Local
+						.from_utc_datetime(&e.time.naive_utc())
+						.format(date_format)
+						.to_string()
+						.parse::<i32>()
+						.unwrap()
+				{
+					size += e.size as usize;
+				}
+			}
+			keys.insert(key, size);
+		}
+		let mut sum: usize = 0;
+		for (_key, size) in &keys {
+			sum += size;
+		}
+		return human_readable_bytes((sum / keys.len()) as usize);
 	}
 }
