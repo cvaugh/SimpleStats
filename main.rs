@@ -255,10 +255,7 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 				dates.push(entry.time);
 			}
 			dates.sort_by_key(|k| k.timestamp_millis());
-			return Local
-				.from_utc_datetime(&dates[0].naive_local())
-				.format(&config["output-date-format"].as_str().unwrap())
-				.to_string();
+			return format_date_config(&dates[0], &config);
 		}
 		"latest-visit" => {
 			let mut dates: Vec<DateTime<FixedOffset>> = Vec::new();
@@ -266,10 +263,7 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 				dates.push(entry.time);
 			}
 			dates.sort_by_key(|k| k.timestamp_millis());
-			return Local
-				.from_utc_datetime(&dates[dates.len() - 1].naive_local())
-				.format(&config["output-date-format"].as_str().unwrap())
-				.to_string();
+			return format_date_config(&dates[dates.len() - 1], &config);
 		}
 		"overall-visitors" => {
 			let mut count = 0;
@@ -293,24 +287,12 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 			let mut sizes: HashMap<i32, usize> = HashMap::new();
 			let mut unique: HashMap<i32, i32> = HashMap::new();
 			for entry in entries {
-				let year = Local
-					.from_utc_datetime(&entry.time.naive_utc())
-					.format("%Y")
-					.to_string()
-					.parse::<i32>()
-					.unwrap();
+				let year = format_date(&entry.time, "%Y").parse::<i32>().unwrap();
 				let mut count = 0;
 				let mut size: usize = 0;
 				let mut u: HashSet<&str> = HashSet::new();
 				for e in entries {
-					if year
-						== Local
-							.from_utc_datetime(&e.time.naive_utc())
-							.format("%Y")
-							.to_string()
-							.parse::<i32>()
-							.unwrap()
-					{
+					if year == format_date(&e.time, "%Y").parse::<i32>().unwrap() {
 						count += 1;
 						size += e.size as usize;
 						u.insert(&e.ip);
@@ -351,24 +333,12 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 			let mut sizes: HashMap<i32, usize> = HashMap::new();
 			let mut unique: HashMap<i32, i32> = HashMap::new();
 			for entry in entries {
-				let month = Local
-					.from_utc_datetime(&entry.time.naive_utc())
-					.format("%m")
-					.to_string()
-					.parse::<i32>()
-					.unwrap();
+				let month = format_date(&entry.time, "%m").parse::<i32>().unwrap();
 				let mut count = 0;
 				let mut size: usize = 0;
 				let mut u: HashSet<&str> = HashSet::new();
 				for e in entries {
-					if month
-						== Local
-							.from_utc_datetime(&e.time.naive_utc())
-							.format("%m")
-							.to_string()
-							.parse::<i32>()
-							.unwrap()
-					{
+					if month == format_date(&e.time, "%m").parse::<i32>().unwrap() {
 						count += 1;
 						size += e.size as usize;
 						u.insert(&e.ip);
@@ -410,23 +380,11 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 			let mut days: HashMap<i32, i32> = HashMap::new();
 			let mut sizes: HashMap<i32, usize> = HashMap::new();
 			for entry in entries {
-				let day = Local
-					.from_utc_datetime(&entry.time.naive_utc())
-					.format("%d")
-					.to_string()
-					.parse::<i32>()
-					.unwrap();
+				let day = format_date(&entry.time, "%d").parse::<i32>().unwrap();
 				let mut count = 0;
 				let mut size: usize = 0;
 				for e in entries {
-					if day
-						== Local
-							.from_utc_datetime(&e.time.naive_utc())
-							.format("%d")
-							.to_string()
-							.parse::<i32>()
-							.unwrap()
-					{
+					if day == format_date(&e.time, "%d").parse::<i32>().unwrap() {
 						count += 1;
 						size += e.size as usize;
 					}
@@ -462,23 +420,11 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 			let mut days: HashMap<i32, i32> = HashMap::new();
 			let mut sizes: HashMap<i32, usize> = HashMap::new();
 			for entry in entries {
-				let day = Local
-					.from_utc_datetime(&entry.time.naive_utc())
-					.format("%w")
-					.to_string()
-					.parse::<i32>()
-					.unwrap();
+				let day = format_date(&entry.time, "%w").parse::<i32>().unwrap();
 				let mut count = 0;
 				let mut size: usize = 0;
 				for e in entries {
-					if day
-						== Local
-							.from_utc_datetime(&e.time.naive_utc())
-							.format("%w")
-							.to_string()
-							.parse::<i32>()
-							.unwrap()
-					{
+					if day == format_date(&e.time, "%w").parse::<i32>().unwrap() {
 						count += 1;
 						size += e.size as usize;
 					}
@@ -507,23 +453,11 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 			let mut hours: HashMap<i32, i32> = HashMap::new();
 			let mut sizes: HashMap<i32, usize> = HashMap::new();
 			for entry in entries {
-				let hour = Local
-					.from_utc_datetime(&entry.time.naive_utc())
-					.format("%H")
-					.to_string()
-					.parse::<i32>()
-					.unwrap();
+				let hour = format_date(&entry.time, "%H").parse::<i32>().unwrap();
 				let mut count = 0;
 				let mut size: usize = 0;
 				for e in entries {
-					if hour
-						== Local
-							.from_utc_datetime(&e.time.naive_utc())
-							.format("%H")
-							.to_string()
-							.parse::<i32>()
-							.unwrap()
-					{
+					if hour == format_date(&e.time, "%H").parse::<i32>().unwrap() {
 						count += 1;
 						size += e.size as usize;
 					}
@@ -597,10 +531,7 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 					format_percent(count as usize, entries.len()),
 					human_readable_bytes(bw),
 					format_percent(bw, total_size),
-					Local
-						.from_utc_datetime(&dates[dates.len() - 1].naive_local())
-						.format(&config["output-date-format"].as_str().unwrap())
-						.to_string()
+					format_date_config(&dates[dates.len() - 1], &config)
 				));
 			}
 			return lines.join("");
@@ -641,10 +572,7 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 					format_percent(count as usize, entries.len()),
 					human_readable_bytes(bw),
 					format_percent(bw, total_size),
-					Local
-						.from_utc_datetime(&dates[dates.len() - 1].naive_local())
-						.format(&config["output-date-format"].as_str().unwrap())
-						.to_string()
+					format_date_config(&dates[dates.len() - 1], &config)
 				));
 			}
 			return lines.join("");
@@ -716,8 +644,8 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 						format_percent(count as usize, entries.len()),
 						human_readable_bytes(bw),
 						format_percent(bw, total_size),
-						Local.from_utc_datetime(&dates[dates.len() - 1].naive_local()).format(&config["output-date-format"].as_str().unwrap()).to_string()
-					));
+						format_date_config(&dates[dates.len() - 1], config))
+					);
 				} else {
 					lines.push(format!(
 						"<tr><td class=\"ss-user-agent\">{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
@@ -727,8 +655,8 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 						format_percent(count as usize, entries.len()),
 						human_readable_bytes(bw),
 						format_percent(bw, total_size),
-						Local.from_utc_datetime(&dates[dates.len() - 1].naive_local()).format(&config["output-date-format"].as_str().unwrap()).to_string()
-					));
+						format_date_config(&dates[dates.len() - 1], config))
+					);
 				}
 			}
 			return lines.join("");
@@ -896,10 +824,7 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 		let mut unique: HashSet<&str> = HashSet::new();
 		let mut keys: HashSet<i32> = HashSet::new();
 		for entry in entries {
-			let key = Local
-				.from_utc_datetime(&entry.time.naive_utc())
-				.format(date_format)
-				.to_string()
+			let key = format_date(&entry.time, date_format)
 				.parse::<i32>()
 				.unwrap();
 			keys.insert(key);
@@ -911,10 +836,7 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 	fn get_average_visits(entries: &Vec<Entry>, date_format: &str) -> String {
 		let mut keys: HashSet<i32> = HashSet::new();
 		for entry in entries {
-			let key = Local
-				.from_utc_datetime(&entry.time.naive_utc())
-				.format(date_format)
-				.to_string()
+			let key = format_date(&entry.time, date_format)
 				.parse::<i32>()
 				.unwrap();
 			keys.insert(key);
@@ -925,22 +847,12 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 	fn get_average_bandwidth(entries: &Vec<Entry>, date_format: &str) -> String {
 		let mut keys: HashMap<i32, usize> = HashMap::new();
 		for entry in entries {
-			let key = Local
-				.from_utc_datetime(&entry.time.naive_utc())
-				.format(date_format)
-				.to_string()
+			let key = format_date(&entry.time, date_format)
 				.parse::<i32>()
 				.unwrap();
 			let mut size: usize = 0;
 			for e in entries {
-				if key
-					== Local
-						.from_utc_datetime(&e.time.naive_utc())
-						.format(date_format)
-						.to_string()
-						.parse::<i32>()
-						.unwrap()
-				{
+				if key == format_date(&e.time, date_format).parse::<i32>().unwrap() {
 					size += e.size as usize;
 				}
 			}
@@ -951,5 +863,16 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 			sum += size;
 		}
 		return human_readable_bytes((sum / keys.len()) as usize);
+	}
+
+	fn format_date(date: &DateTime<FixedOffset>, format: &str) -> String {
+		return Local
+			.from_utc_datetime(&date.naive_local())
+			.format(&format)
+			.to_string();
+	}
+
+	fn format_date_config(date: &DateTime<FixedOffset>, config: &Yaml) -> String {
+		return format_date(date, config["output-date-format"].as_str().unwrap());
 	}
 }
