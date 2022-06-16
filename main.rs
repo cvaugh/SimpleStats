@@ -34,13 +34,13 @@ fn main() {
 	)
 	.unwrap()[0];
 
-	// let access_log_path = config.get("input", "access-log-path").unwrap();
+	//let access_log_path = shellexpand::tilde(config["access-log-path"].as_str().unwrap()).to_string();
 	let access_log_path = String::from("log/access.log"); // XXX debugging
 
-	read_log(access_log_path, config);
+	read_log(&access_log_path, config);
 }
 
-fn read_log(path: String, config: &Yaml) {
+fn read_log(path: &str, config: &Yaml) {
 	let contents = fs::read_to_string(path).expect("Failed to read file");
 
 	let mut entries = Vec::new();
@@ -224,15 +224,15 @@ fn write_output(entries: &Vec<Entry>, config: &Yaml) {
 		);
 	}
 
-	// let output = &config["output-file"].as_str().unwrap();
+	// let output = shellexpand::tilde(&config["output-file"].as_str().unwrap()).to_string();
 	let output = "stats.html"; // debugging
 
-	let result = fs::write(output, template);
+	let result = fs::write(&output, template);
 
 	if result.is_err() {
 		eprintln!(
 			"Failed to write output to {}: {}",
-			output,
+			&output,
 			result.unwrap_err()
 		);
 	}
