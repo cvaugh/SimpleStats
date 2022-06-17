@@ -34,9 +34,13 @@ fn main() {
 	let config_dir = &shellexpand::tilde("~/.config/simplestats").to_string();
 	fs::create_dir_all(config_dir).expect("Unable to create config directory");
 	let config_path = Path::join(Path::new(&config_dir), "simplestats.yml");
-	fs::write(&config_path, default_config).expect("Unable to write default config");
+	if !config_path.exists() {
+		fs::write(&config_path, default_config).expect("Unable to write default config");
+	}
 	let template_path = Path::join(Path::new(&config_dir), "template.html");
-	fs::write(&template_path, template).expect("Unable to write default template");
+	if !template_path.exists() {
+		fs::write(&template_path, template).expect("Unable to write default template");
+	}
 	let config_contents = fs::read_to_string(&config_path);
 	if config_contents.is_err() {
 		eprintln!(
@@ -57,7 +61,7 @@ fn main() {
 fn read_log(path: &str, config: &Yaml) {
 	let contents = fs::read_to_string(path);
 	if contents.is_err() {
-		eprintln!("error: Access log not found: ");
+		eprintln!("error: Access log not found: {}", &path);
 		process::exit(1);
 	}
 
