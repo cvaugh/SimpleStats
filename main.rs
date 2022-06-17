@@ -6,6 +6,8 @@ use linked_hash_map::LinkedHashMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
+use std::path::Path;
+use std::process;
 use substring::Substring;
 use yaml_rust::Yaml;
 use yaml_rust::YamlLoader;
@@ -27,25 +29,41 @@ struct Entry {
 }
 
 fn main() {
-	let config_path = String::from("simplestats.yml"); // TODO: store config in ~/.config
+	let template = include_bytes!("template.html");
+	let default_config = include_bytes!("simplestats.yml");
+	let config_dir = &shellexpand::tilde("~/.config/simplestats").to_string();
+	fs::create_dir_all(config_dir).expect("Unable to create config directory");
+	let config_path = Path::join(Path::new(&config_dir), "simplestats.yml");
+	fs::write(&config_path, default_config).expect("Unable to write default config");
+	let template_path = Path::join(Path::new(&config_dir), "template.html");
+	fs::write(&template_path, template).expect("Unable to write default template");
+	let config_contents = fs::read_to_string(&config_path);
+	if config_contents.is_err() {
+		eprintln!(
+			"error: Unable to read config file at {:?}\nerror: Please ensure that the program has read/write access to the specified file.",
+			&config_path
+		);
+		process::exit(1);
+	}
 
-	let config = &YamlLoader::load_from_str(
-		&fs::read_to_string(config_path).expect("Failed to read simplestats.yml"),
-	)
-	.unwrap()[0];
+	let config = &YamlLoader::load_from_str(&config_contents.unwrap()).unwrap()[0];
 
-	//let access_log_path = shellexpand::tilde(config["access-log-path"].as_str().unwrap()).to_string();
-	let access_log_path = String::from("log/access.log"); // XXX debugging
+	let access_log_path =
+		shellexpand::tilde(config["access-log-path"].as_str().unwrap()).to_string();
 
 	read_log(&access_log_path, config);
 }
 
 fn read_log(path: &str, config: &Yaml) {
-	let contents = fs::read_to_string(path).expect("Failed to read file");
+	let contents = fs::read_to_string(path);
+	if contents.is_err() {
+		eprintln!("error: Access log not found: ");
+		process::exit(1);
+	}
 
 	let mut entries = Vec::new();
 
-	for line in contents.split("\n") {
+	for line in contents.unwrap().split("\n") {
 		if line.chars().count() == 0 {
 			continue;
 		}
@@ -207,14 +225,26 @@ fn parse_log_line(original: String, line: Vec<char>, config: &Yaml) -> Entry {
 }
 
 fn write_output(entries: &Vec<Entry>, config: &Yaml) {
-	let template_path_config = &config["template"];
-	let template_path: &str;
-	if template_path_config.is_null() {
-		template_path = "template.html";
+	let template_config = &config["template"];
+	let template_path_str = shellexpand::tilde(
+		template_config
+			.as_str()
+			.unwrap_or("~/.config/simplestats/template.html"),
+	)
+	.to_string();
+	let template_path = if template_config.is_null() {
+		Path::new(&template_path_str)
 	} else {
-		template_path = template_path_config.as_str().unwrap();
+		Path::new(&template_path_str)
+	};
+	let template_lines = fs::read_to_string(&template_path);
+	if template_lines.is_err() {
+		eprintln!("error: Failed to read template at {:?}\nerror: Please ensure that the program has read/write access to the specified file.",
+		&template_path);
+		process::exit(1);
 	}
-	let mut template = fs::read_to_string(template_path).expect("Failed to read file");
+
+	let mut template = template_lines.unwrap();
 	let replacements = &config["template-replacements"].as_hash().unwrap();
 
 	for (key, value) in replacements.into_iter() {
@@ -224,8 +254,7 @@ fn write_output(entries: &Vec<Entry>, config: &Yaml) {
 		);
 	}
 
-	// let output = shellexpand::tilde(&config["output-file"].as_str().unwrap()).to_string();
-	let output = "stats.html"; // debugging
+	let output = shellexpand::tilde(&config["output-file"].as_str().unwrap()).to_string();
 
 	let result = fs::write(&output, template);
 
