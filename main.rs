@@ -783,8 +783,12 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 					}
 				}
 				lines.push(format!(
-					"<tr><td><abbr title=\"{}\">{}</abbr></td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
-					"!!UNIMPLEMENTED!!", response, count, format_percent(count as usize, entries.len()), human_readable_bytes(bw), format_percent(bw, total_size)
+					"<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
+					response,
+					count,
+					format_percent(count as usize, entries.len()),
+					human_readable_bytes(bw),
+					format_percent(bw, total_size)
 				));
 			}
 			return lines.join("");
