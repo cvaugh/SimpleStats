@@ -4,7 +4,7 @@ A tool for generating easy-to-read statistics for your Apache web server.
 
 ## Configuration
 
-The configuration for the program is stored in `~/.config/simplestats/simplestats.yml`.
+The program's configuration file can be found at `~/.config/simplestats/simplestats.yml`.
 |Key|Description|Default value|
 |---|-----------|-------------|
 |`access-log-path`|The path to your Apache access log.|`/var/log/apache2/access.log`|
