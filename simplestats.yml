@@ -7,7 +7,7 @@ output-file: ~/simplestats.html
 
 # The format of dates within the access log.
 # See here for date formatting details:
-# https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/text/SimpleDateFormat.html
+# https://docs.rs/chrono/latest/chrono/format/strftime/index.html
 input-date-format: "%d/%b/%Y:%H:%M:%S %z"
 
 # The format to use for dates in the output file.
