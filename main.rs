@@ -2,7 +2,6 @@ use chrono::DateTime;
 use chrono::FixedOffset;
 use chrono::Local;
 use chrono::TimeZone;
-use chrono::Utc;
 use linked_hash_map::LinkedHashMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
