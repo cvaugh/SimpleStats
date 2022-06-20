@@ -744,7 +744,7 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 				let split: Vec<&str> = request.split(" ").collect();
 				lines.push(format!(
 					"<tr><td>{}</td><td class=\"ss-page-url\">{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
-					get_or_none(&split[0]),
+					get_or_none(&split[0]).substring(0, 10),
 					(split.len() > 1).then(|| split[1]).unwrap_or("(none)"),
 					(split.len() > 2).then(|| split[2]).unwrap_or("(none)"),
 					count,
