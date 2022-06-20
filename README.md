@@ -7,7 +7,9 @@ A tool for generating easy-to-read statistics for your Apache web server.
 The program's configuration file can be found at `~/.config/simplestats/simplestats.yml`.
 |Key|Description|Default value|
 |---|-----------|-------------|
-|`access-log-path`|The path to your Apache access log.|`/var/log/apache2/access.log`|
+|`access-log-dir`|The path to your Apache log directory.|`/var/log/apache2`|
+|`access-log-name`|The name of your access log.|`access.log`|
+|`read-rotated-logs`|If you use [logrotate](https://linux.die.net/man/8/logrotate) to rotate your logs, SimpleStats can look for rotated logs in the same directory as the file above.|`true`|
 |`output-file`|The path to which the program should write its output. Changing this from the default value is recommended.|`~/simplestats.html`|
 |`input-date-format`|The format of dates within the access log. See [here](https://docs.rs/chrono/latest/chrono/format/strftime/index.html) for date formatting details.|`"%d/%b/%Y:%H:%M:%S %z"`|
 |`output-date-format`|The format to use for dates in the output file.|`"%e %b %Y %I:%M:%S %p"`|
