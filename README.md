@@ -18,3 +18,7 @@ The program's configuration file can be found at `~/.config/simplestats/simplest
 |`template-replacements`|Each of the strings in this section will be replaced by data if it is found surrounded by {{brackets}} within the template file. For example, `first-visit: abc` would cause every instance of `{{abc}}` within the template to be replaced with the time of the earliest entry in the log. Remove or comment out a key to disable it.|The value of each key is the name of the key.|
 |`truncate-user-agent`|Truncate long user agents after this many characters. Set to 0 to disable truncation.|`100`|
 |`show-full-agent`|If a user agent is longer than the value defined above, this determines how the full user agent can be viewed. Supported values:<br>&nbsp;&nbsp;&nbsp;`hover`: Show the full user agent when hovering over the truncated user agent<br>&nbsp;&nbsp;&nbsp;`click`: Show the full user agent in an alert (requires JavaScript)<br>&nbsp;&nbsp;&nbsp;`none`: Do not show the full user agent|`hover`|
+
+## Command line arguments
+
+`no-write`: Run the program as usual, but do not save the output.
