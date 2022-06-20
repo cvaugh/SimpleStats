@@ -1,5 +1,12 @@
-# The path to your Apache access.log
-access-log-path: /var/log/apache2/access.log
+# The path to your Apache log directory
+access-log-dir: /var/log/apache2
+
+# The name of your access log
+access-log-name: access.log
+
+# If you use logrotate to rotate your logs, the program can look for rotated logs in the same
+# directory as the file above.
+read-rotated-logs: true
 
 # The path to which the program should write its output.
 # Changing this from the default value is recommended.

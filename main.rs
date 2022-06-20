@@ -2,10 +2,14 @@ use chrono::DateTime;
 use chrono::FixedOffset;
 use chrono::Local;
 use chrono::TimeZone;
+use flate2::read::GzDecoder;
 use linked_hash_map::LinkedHashMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
+use std::fs::File;
+use std::io::prelude::*;
+use std::io::BufReader;
 use std::path::Path;
 use std::process;
 use substring::Substring;
@@ -52,32 +56,90 @@ fn main() {
 
 	let config = &YamlLoader::load_from_str(&config_contents.unwrap()).unwrap()[0];
 
-	let access_log_path =
-		shellexpand::tilde(config["access-log-path"].as_str().unwrap()).to_string();
+	let access_log_dir_str =
+		shellexpand::tilde(config["access-log-dir"].as_str().unwrap()).to_string();
 
-	read_log(&access_log_path, config);
-}
+	let access_log_dir = Path::new(&access_log_dir_str);
 
-fn read_log(path: &str, config: &Yaml) {
-	let contents = fs::read_to_string(path);
-	if contents.is_err() {
-		eprintln!("error: Access log not found: {}", &path);
-		process::exit(1);
+	let access_log_name = config["access-log-name"].as_str().unwrap();
+
+	let mut entries: Vec<Entry> = Vec::new();
+
+	let initial_path = Path::join(&access_log_dir, &access_log_name);
+
+	for entry in read_log(&initial_path, false, &config) {
+		entries.push(entry);
 	}
 
-	let mut entries = Vec::new();
-
-	for line in contents.unwrap().split("\n") {
-		if line.chars().count() == 0 {
-			continue;
+	if config["read-rotated-logs"].as_bool().unwrap_or(true) {
+		let mut i = 0;
+		loop {
+			i += 1;
+			let uncompressed_log_name = format!("{}.{}", &access_log_name, i);
+			let compressed_log_name = format!("{}.{}.gz", &access_log_name, i);
+			let uncompressed_path = Path::join(&access_log_dir, &uncompressed_log_name);
+			let compressed_path = Path::join(&access_log_dir, &compressed_log_name);
+			if !(uncompressed_path.exists() || compressed_path.exists()) {
+				break;
+			}
+			if uncompressed_path.exists() {
+				let e = read_log(&uncompressed_path, false, config);
+				for entry in e {
+					entries.push(entry);
+				}
+			} else if compressed_path.exists() {
+				let e = read_log(&compressed_path, true, config);
+				for entry in e {
+					entries.push(entry);
+				}
+			}
 		}
-		entries.push(parse_log_line(
-			String::from(line),
-			line.chars().collect(),
-			config,
-		));
 	}
 	write_output(&entries, config);
+}
+
+fn read_log(path: &Path, compressed: bool, config: &Yaml) -> Vec<Entry> {
+	let mut entries = Vec::new();
+	if compressed {
+		let file = File::open(path).expect(&format!(
+			"Unable to open file: {}",
+			&path.to_str().unwrap_or("?")
+		));
+		let mut reader = BufReader::new(GzDecoder::new(file));
+		let mut line = String::new();
+		while reader.read_line(&mut line).expect("Failed to read line") != 0 {
+			if line.chars().count() == 0 {
+				continue;
+			}
+			entries.push(parse_log_line(
+				String::from(&line),
+				line.chars().collect(),
+				config,
+			));
+			line.clear();
+		}
+	} else {
+		let contents = fs::read_to_string(&path);
+		if contents.is_err() {
+			eprintln!(
+				"error: Unable to read log: {}",
+				&path.to_str().unwrap_or("?")
+			);
+			process::exit(1);
+		} else {
+			for line in contents.unwrap().split("\n") {
+				if line.chars().count() == 0 {
+					continue;
+				}
+				entries.push(parse_log_line(
+					String::from(line),
+					line.chars().collect(),
+					config,
+				));
+			}
+		}
+	}
+	return entries;
 }
 
 fn parse_log_line(original: String, line: Vec<char>, config: &Yaml) -> Entry {
