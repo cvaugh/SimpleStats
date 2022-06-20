@@ -6,6 +6,7 @@ use flate2::read::GzDecoder;
 use linked_hash_map::LinkedHashMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::env::args;
 use std::fs;
 use std::fs::File;
 use std::io::prelude::*;
@@ -33,6 +34,12 @@ struct Entry {
 }
 
 fn main() {
+	let mut no_write: bool = false;
+	for arg in args().skip(1) {
+		if arg.to_lowercase().eq("no-write") {
+			no_write = true;
+		}
+	}
 	let template = include_bytes!("template.html");
 	let default_config = include_bytes!("simplestats.yml");
 	let config_dir = &shellexpand::tilde("~/.config/simplestats").to_string();
@@ -95,7 +102,9 @@ fn main() {
 			}
 		}
 	}
-	write_output(&entries, config);
+	if !no_write {
+		write_output(&entries, config);
+	}
 }
 
 fn read_log(path: &Path, compressed: bool, config: &Yaml) -> Vec<Entry> {
