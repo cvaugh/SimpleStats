@@ -914,7 +914,8 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 
 	fn format_date(date: &DateTime<FixedOffset>, format: &str) -> String {
 		return Local
-			.from_utc_datetime(&date.naive_local())
+			.from_local_datetime(&date.naive_local())
+			.unwrap()
 			.format(&format)
 			.to_string();
 	}
