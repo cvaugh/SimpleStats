@@ -17,11 +17,6 @@ use substring::Substring;
 use yaml_rust::Yaml;
 use yaml_rust::YamlLoader;
 
-struct Element {
-	start: usize,
-	end: usize,
-}
-
 struct Entry {
 	ip: String,
 	user: String,
@@ -120,11 +115,8 @@ fn read_log(path: &Path, compressed: bool, config: &Yaml) -> Vec<Entry> {
 			if line.chars().count() == 0 {
 				continue;
 			}
-			entries.push(parse_log_line(
-				String::from(&line),
-				line.chars().collect(),
-				config,
-			));
+			let parts = extract_line_parts(String::from(&line), line.chars().collect());
+			entries.push(parse_parts(&parts, config));
 			line.clear();
 		}
 	} else {
@@ -140,160 +132,74 @@ fn read_log(path: &Path, compressed: bool, config: &Yaml) -> Vec<Entry> {
 				if line.chars().count() == 0 {
 					continue;
 				}
-				entries.push(parse_log_line(
-					String::from(line),
-					line.chars().collect(),
-					config,
-				));
+				let parts = extract_line_parts(String::from(line), line.chars().collect());
+				entries.push(parse_parts(&parts, config));
 			}
 		}
 	}
 	return entries;
 }
 
-fn parse_log_line(original: String, line: Vec<char>, config: &Yaml) -> Entry {
-	let mut ip = Element {
-		start: 0,
-		end: usize::MAX,
-	};
-	let mut user = Element {
-		start: usize::MAX,
-		end: usize::MAX,
-	};
-	let mut time = Element {
-		start: usize::MAX,
-		end: usize::MAX,
-	};
-	let mut request = Element {
-		start: usize::MAX,
-		end: usize::MAX,
-	};
-	let mut response = Element {
-		start: usize::MAX,
-		end: usize::MAX,
-	};
-	let mut size = Element {
-		start: usize::MAX,
-		end: usize::MAX,
-	};
-	let mut referer = Element {
-		start: usize::MAX,
-		end: usize::MAX,
-	};
-	let mut agent = Element {
-		start: usize::MAX,
-		end: usize::MAX,
-	};
-	let mut section: i32 = 0;
-	let mut bracket_escape: bool = false;
-	let mut quote_escape: bool = false;
-	let mut ignore_next: bool = false;
-	let mut first: bool = true;
+fn extract_line_parts(original: String, line: Vec<char>) -> Vec<String> {
 	let mut i: usize = 0;
+	let mut start: usize = 0;
+	let mut parts: Vec<String> = Vec::new();
+	let mut quote_escape = false;
+	let mut bracket_escape = false;
+	let mut escaped = false;
+	let mut skip = false;
 	loop {
-		if first {
-			first = false;
-		} else {
-			i += 1;
-		}
-
 		if i >= line.len() {
+			parts.push(original.substring(start, i - 1).to_string());
 			break;
 		}
-		if bracket_escape {
-			if line[i] == ']' {
-				bracket_escape = false;
-			} else {
-				continue;
-			}
+		if !skip {
+			escaped = quote_escape || bracket_escape;
+		} else {
+			skip = false;
 		}
-		if quote_escape {
-			if line[i] == '"' {
-				if line[i - 1] == '\\' {
-					continue;
-				} else {
-					quote_escape = false;
-				}
-			} else {
-				continue;
-			}
-		}
-		if line[i] == ' ' {
-			if ignore_next {
-				ignore_next = false;
-				continue;
-			}
-			if section == 0 {
-				ip.end = i;
-				user.start = i + 3;
-				i += 2;
-				section += 1;
-				continue;
-			}
-			if section == 1 {
-				user.end = i;
-				time.start = i + 2;
-				bracket_escape = true;
-				section += 1;
-				continue;
-			}
-			if section == 2 {
-				time.end = i - 1;
-				request.start = i + 2;
-				quote_escape = true;
-				i += 1;
-				section += 1;
-				continue;
-			}
-			if section == 3 {
-				request.end = i - 1;
-				response.start = i + 1;
-				section += 1;
-				continue;
-			}
-			if section == 4 {
-				response.end = i;
-				size.start = i + 1;
-				section += 1;
-				continue;
-			}
-			if section == 5 {
-				size.end = i;
-				referer.start = i + 2;
-				quote_escape = true;
-				i += 1;
-				section += 1;
-				continue;
-			}
-			if section == 6 {
-				referer.end = i - 1;
-				agent.start = i + 2;
-				quote_escape = true;
-				i += 1;
-				section += 1;
-				continue;
-			}
-		}
-	}
-	agent.end = i - 1;
 
+		if line[i] == '"' && !bracket_escape && line[i - 1] != '\\' {
+			if !quote_escape {
+				start += 1;
+			} else {
+				skip = true;
+			}
+			quote_escape = !quote_escape;
+		} else if line[i] == '[' && !quote_escape {
+			bracket_escape = true;
+			start += 1;
+		} else if line[i] == ']' && !quote_escape {
+			bracket_escape = false;
+			skip = true;
+		} else if line[i] == ' ' {
+			if !(quote_escape || bracket_escape) {
+				if escaped {
+					parts.push(original.substring(start, i - 1).to_string());
+				} else {
+					parts.push(original.substring(start, i).to_string());
+				}
+				start = i + 1;
+				i += 1;
+				continue;
+			}
+		}
+		i += 1;
+	}
+	return parts;
+}
+
+fn parse_parts(parts: &Vec<String>, config: &Yaml) -> Entry {
 	let entry = Entry {
-		ip: original.substring(ip.start, ip.end).to_string(),
-		user: original.substring(user.start, user.end).to_string(),
-		time: DateTime::parse_from_str(
-			original.substring(time.start, time.end),
-			&config["input-date-format"].as_str().unwrap(),
-		)
-		.unwrap(),
-		request: original.substring(request.start, request.end).to_string(),
-		response: original.substring(response.start, response.end).to_string(),
-		size: original
-			.substring(size.start, size.end)
-			.to_string()
-			.parse::<i32>()
+		ip: parts[0].clone(),
+		user: parts[2].clone(),
+		time: DateTime::parse_from_str(&parts[3], &config["input-date-format"].as_str().unwrap())
 			.unwrap(),
-		referer: original.substring(referer.start, referer.end).to_string(),
-		agent: original.substring(agent.start, agent.end).to_string(),
+		request: parts[4].clone(),
+		response: parts[5].clone(),
+		size: parts[6].parse::<i32>().unwrap(),
+		referer: parts[7].clone(),
+		agent: parts[8].clone(),
 	};
 
 	return entry;

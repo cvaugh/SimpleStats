@@ -8,6 +8,9 @@ access-log-name: access.log
 # directory as the file above.
 read-rotated-logs: true
 
+# The LogFormat of your access log. This can likely be found in /etc/apache2/apache2.conf.
+log-format: "%h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\""
+
 # The path to which the program should write its output.
 # Changing this from the default value is recommended.
 output-file: ~/simplestats.html
