@@ -103,6 +103,8 @@ fn main() {
 }
 
 fn read_log(path: &Path, compressed: bool, config: &Yaml) -> Vec<Entry> {
+	let keys_str = &config["log-format"].as_str().unwrap();
+	let log_keys = extract_line_parts(keys_str, keys_str.chars().collect());
 	let mut entries = Vec::new();
 	if compressed {
 		let file = File::open(path).expect(&format!(
@@ -115,8 +117,7 @@ fn read_log(path: &Path, compressed: bool, config: &Yaml) -> Vec<Entry> {
 			if line.chars().count() == 0 {
 				continue;
 			}
-			let parts = extract_line_parts(String::from(&line), line.chars().collect());
-			entries.push(parse_parts(&parts, config));
+			entries.push(parse_line(&line, &log_keys, config));
 			line.clear();
 		}
 	} else {
@@ -132,15 +133,19 @@ fn read_log(path: &Path, compressed: bool, config: &Yaml) -> Vec<Entry> {
 				if line.chars().count() == 0 {
 					continue;
 				}
-				let parts = extract_line_parts(String::from(line), line.chars().collect());
-				entries.push(parse_parts(&parts, config));
+				entries.push(parse_line(&line, &log_keys, config));
 			}
 		}
 	}
 	return entries;
 }
 
-fn extract_line_parts(original: String, line: Vec<char>) -> Vec<String> {
+fn parse_line(line: &str, log_keys: &Vec<String>, config: &Yaml) -> Entry {
+	let parts = extract_line_parts(line, line.chars().collect());
+	return parse_parts(&parts, log_keys, config);
+}
+
+fn extract_line_parts(original: &str, line: Vec<char>) -> Vec<String> {
 	let mut i: usize = 0;
 	let mut start: usize = 0;
 	let mut parts: Vec<String> = Vec::new();
@@ -189,20 +194,32 @@ fn extract_line_parts(original: String, line: Vec<char>) -> Vec<String> {
 	return parts;
 }
 
-fn parse_parts(parts: &Vec<String>, config: &Yaml) -> Entry {
+fn parse_parts(parts: &Vec<String>, keys: &Vec<String>, config: &Yaml) -> Entry {
 	let entry = Entry {
-		ip: parts[0].clone(),
-		user: parts[2].clone(),
-		time: DateTime::parse_from_str(&parts[3], &config["input-date-format"].as_str().unwrap())
-			.unwrap(),
-		request: parts[4].clone(),
-		response: parts[5].clone(),
-		size: parts[6].parse::<i32>().unwrap(),
-		referer: parts[7].clone(),
-		agent: parts[8].clone(),
+		ip: get_part("%h", parts, keys),
+		user: get_part("%u", parts, keys),
+		time: DateTime::parse_from_str(
+			&get_part("%t", parts, keys),
+			&config["input-date-format"].as_str().unwrap(),
+		)
+		.unwrap(),
+		request: get_part("%r", parts, keys),
+		response: get_part("%>s", parts, keys),
+		size: get_part("%O", parts, keys).parse::<i32>().unwrap(),
+		referer: get_part("%{Referer}i", parts, keys),
+		agent: get_part("%{User-Agent}i", parts, keys),
 	};
 
 	return entry;
+}
+
+fn get_part(key: &str, parts: &Vec<String>, keys: &Vec<String>) -> String {
+	for i in 0..parts.len() {
+		if keys[i].eq(key) {
+			return parts[i].clone();
+		}
+	}
+	return String::new();
 }
 
 fn write_output(entries: &Vec<Entry>, config: &Yaml) {
