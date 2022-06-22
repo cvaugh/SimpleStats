@@ -10,6 +10,7 @@ The program's configuration file can be found at `~/.config/simplestats/simplest
 |`access-log-dir`|The path to your Apache log directory.|`/var/log/apache2`|
 |`access-log-name`|The name of your access log.|`access.log`|
 |`read-rotated-logs`|If you use [logrotate](https://linux.die.net/man/8/logrotate) to rotate your logs, SimpleStats can look for rotated logs in the same directory as the file above.|`true`|
+|`log-format`|The format of your log. This can usually be found in `/etc/apache2/apache2.conf`. For more information, see the [documentation for mod_log_config](https://httpd.apache.org/docs/2.4/mod/mod_log_config.html).|`"%h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\""`|
 |`output-file`|The path to which the program should write its output. Changing this from the default value is recommended.|`~/simplestats.html`|
 |`input-date-format`|The format of dates within the access log. See [here](https://docs.rs/chrono/latest/chrono/format/strftime/index.html) for date formatting details.|`"%d/%b/%Y:%H:%M:%S %z"`|
 |`output-date-format`|The format to use for dates in the output file.|`"%e %b %Y %I:%M:%S %p"`|
@@ -21,4 +22,4 @@ The program's configuration file can be found at `~/.config/simplestats/simplest
 
 ## Command line arguments
 
-`no-write`: Run the program as usual, but do not save the output.
+`no-write`: Run the program as usual, but do not save the output. The default configuration file and template will still be saved.
