@@ -63,6 +63,7 @@ template-replacements:
   pages-rows: pages-rows
   referers-rows: referers-rows
   responses-rows: responses-rows
+  #full-log-rows: full-log-rows
   footer: footer
 
 # Truncate long user agents after this many characters.

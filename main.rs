@@ -26,6 +26,28 @@ struct Entry {
 	size: i32,
 	referer: String,
 	agent: String,
+	canonical_server_name: String,
+	port: i32,
+	client_ip: String,
+	local_ip: String,
+	size_excl_headers: i32,
+	size_incl_headers: i32,
+	time_to_serve_us: i64,
+	filename: String,
+	request_protocol: String,
+	keepalive_requests: i32,
+	request_method: String,
+	child_pid: i32,
+	url_excl_query: String,
+	query: String,
+	handler: String,
+	time_to_serve_s: i32,
+	server_name: String,
+	connection_status: char,
+	bytes_received: i32,
+	bytes_transferred: i32,
+	remote_logname: String,
+	error_log_id: i32,
 }
 
 fn main() {
@@ -68,8 +90,10 @@ fn main() {
 	let mut entries: Vec<Entry> = Vec::new();
 
 	let initial_path = Path::join(&access_log_dir, &access_log_name);
+	let keys_str = &config["log-format"].as_str().unwrap();
+	let log_keys = extract_line_parts(keys_str, keys_str.chars().collect(), usize::MAX);
 
-	for entry in read_log(&initial_path, false, &config) {
+	for entry in read_log(&initial_path, false, &log_keys, &config) {
 		entries.push(entry);
 	}
 
@@ -85,12 +109,12 @@ fn main() {
 				break;
 			}
 			if uncompressed_path.exists() {
-				let e = read_log(&uncompressed_path, false, config);
+				let e = read_log(&uncompressed_path, false, &log_keys, config);
 				for entry in e {
 					entries.push(entry);
 				}
 			} else if compressed_path.exists() {
-				let e = read_log(&compressed_path, true, config);
+				let e = read_log(&compressed_path, true, &log_keys, config);
 				for entry in e {
 					entries.push(entry);
 				}
@@ -98,13 +122,11 @@ fn main() {
 		}
 	}
 	if !no_write {
-		write_output(&entries, config);
+		write_output(&entries, &log_keys, config);
 	}
 }
 
-fn read_log(path: &Path, compressed: bool, config: &Yaml) -> Vec<Entry> {
-	let keys_str = &config["log-format"].as_str().unwrap();
-	let log_keys = extract_line_parts(keys_str, keys_str.chars().collect());
+fn read_log(path: &Path, compressed: bool, log_keys: &Vec<String>, config: &Yaml) -> Vec<Entry> {
 	let mut entries = Vec::new();
 	if compressed {
 		let file = File::open(path).expect(&format!(
@@ -141,11 +163,15 @@ fn read_log(path: &Path, compressed: bool, config: &Yaml) -> Vec<Entry> {
 }
 
 fn parse_line(line: &str, log_keys: &Vec<String>, config: &Yaml) -> Entry {
-	let parts = extract_line_parts(line, line.chars().collect());
+	let parts = extract_line_parts(
+		line,
+		line.chars().collect(),
+		log_keys.iter().position(|k| k == "%h").unwrap(),
+	);
 	return parse_parts(&parts, log_keys, config);
 }
 
-fn extract_line_parts(original: &str, line: Vec<char>) -> Vec<String> {
+fn extract_line_parts(original: &str, line: Vec<char>, ip_index: usize) -> Vec<String> {
 	let mut i: usize = 0;
 	let mut start: usize = 0;
 	let mut parts: Vec<String> = Vec::new();
@@ -154,8 +180,17 @@ fn extract_line_parts(original: &str, line: Vec<char>) -> Vec<String> {
 	let mut escaped = false;
 	let mut skip = false;
 	loop {
+		let is_ip = if ip_index == usize::MAX {
+			false
+		} else {
+			parts.len() == ip_index
+		};
 		if i >= line.len() {
-			parts.push(original.substring(start, i - 1).to_string());
+			parts.push(
+				original
+					.substring(start, if escaped { i - 1 } else { i })
+					.to_string(),
+			);
 			break;
 		}
 		if !skip {
@@ -163,7 +198,6 @@ fn extract_line_parts(original: &str, line: Vec<char>) -> Vec<String> {
 		} else {
 			skip = false;
 		}
-
 		if line[i] == '"' && !bracket_escape && line[i - 1] != '\\' {
 			if !quote_escape {
 				start += 1;
@@ -177,7 +211,7 @@ fn extract_line_parts(original: &str, line: Vec<char>) -> Vec<String> {
 		} else if line[i] == ']' && !quote_escape {
 			bracket_escape = false;
 			skip = true;
-		} else if line[i] == ' ' {
+		} else if line[i] == ' ' || (!is_ip && line[i] == ':') {
 			if !(quote_escape || bracket_escape) {
 				if escaped {
 					parts.push(original.substring(start, i - 1).to_string());
@@ -205,11 +239,32 @@ fn parse_parts(parts: &Vec<String>, keys: &Vec<String>, config: &Yaml) -> Entry 
 		.unwrap(),
 		request: get_part("%r", parts, keys),
 		response: get_part("%>s", parts, keys),
-		size: get_part("%O", parts, keys).parse::<i32>().unwrap(),
+		size: get_part("%O", parts, keys).parse::<i32>().unwrap_or(0),
 		referer: get_part("%{Referer}i", parts, keys),
 		agent: get_part("%{User-Agent}i", parts, keys),
+		canonical_server_name: get_part("%v", parts, keys),
+		port: get_part("%p", parts, keys).parse::<i32>().unwrap_or(0),
+		client_ip: get_part("%a", parts, keys),
+		local_ip: get_part("%A", parts, keys),
+		size_incl_headers: get_part("%b", parts, keys).parse::<i32>().unwrap_or(0),
+		size_excl_headers: get_part("%B", parts, keys).parse::<i32>().unwrap_or(0),
+		time_to_serve_us: get_part("%D", parts, keys).parse::<i64>().unwrap_or(0),
+		filename: get_part("%f", parts, keys),
+		request_protocol: get_part("%H", parts, keys),
+		keepalive_requests: get_part("%k", parts, keys).parse::<i32>().unwrap_or(0),
+		remote_logname: get_part("%l", parts, keys),
+		error_log_id: get_part("%L", parts, keys).parse::<i32>().unwrap_or(-1),
+		request_method: get_part("%m", parts, keys),
+		child_pid: get_part("%P", parts, keys).parse::<i32>().unwrap_or(0),
+		url_excl_query: get_part("%U", parts, keys),
+		query: get_part("%q", parts, keys),
+		handler: get_part("%R", parts, keys),
+		time_to_serve_s: get_part("%T", parts, keys).parse::<i32>().unwrap_or(0),
+		server_name: get_part("%V", parts, keys),
+		connection_status: get_part("%X", parts, keys).parse::<char>().unwrap_or('?'),
+		bytes_received: get_part("%I", parts, keys).parse::<i32>().unwrap_or(0),
+		bytes_transferred: get_part("%S", parts, keys).parse::<i32>().unwrap_or(0),
 	};
-
 	return entry;
 }
 
@@ -219,10 +274,10 @@ fn get_part(key: &str, parts: &Vec<String>, keys: &Vec<String>) -> String {
 			return parts[i].clone();
 		}
 	}
-	return String::new();
+	return String::from("-");
 }
 
-fn write_output(entries: &Vec<Entry>, config: &Yaml) {
+fn write_output(entries: &Vec<Entry>, log_keys: &Vec<String>, config: &Yaml) {
 	let template_config = &config["template"];
 	let template_path_str = shellexpand::tilde(
 		template_config
@@ -247,7 +302,7 @@ fn write_output(entries: &Vec<Entry>, config: &Yaml) {
 	for (key, value) in replacements.into_iter() {
 		template = template.replace(
 			&format!("{{{{{}}}}}", value.as_str().unwrap()),
-			get_output(key.as_str().unwrap(), entries, &config).as_str(),
+			get_output(key.as_str().unwrap(), entries, &log_keys, &config).as_str(),
 		);
 	}
 
@@ -264,7 +319,7 @@ fn write_output(entries: &Vec<Entry>, config: &Yaml) {
 	}
 }
 
-fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
+fn get_output(key: &str, entries: &Vec<Entry>, log_keys: &Vec<String>, config: &Yaml) -> String {
 	let mut total_size = 0usize;
 	for entry in entries {
 		total_size += entry.size as usize;
@@ -742,6 +797,57 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 			}
 			return lines.join("");
 		}
+		"full-log-rows" => {
+			let mut lines: Vec<String> = Vec::new();
+			lines.push(String::from("<tr>"));
+			for key in log_keys {
+				lines.push(format!("<td>{}</td>", get_key_name(&key)));
+			}
+			lines.push(String::from("</tr>\n"));
+			for entry in entries {
+				lines.push(format!(
+					"<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td>
+				<td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td>
+				<td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}
+				</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
+					&entry.canonical_server_name,
+					&entry.port,
+					&entry.ip,
+					&entry.remote_logname,
+					&entry.user,
+					format_date_config(&entry.time, config),
+					&entry.request,
+					&entry.response,
+					human_readable_bytes(entry.size as usize),
+					&entry.referer,
+					&entry.agent,
+					&entry.client_ip,
+					&entry.local_ip,
+					human_readable_bytes(entry.size_excl_headers as usize),
+					human_readable_bytes(entry.size_incl_headers as usize),
+					&entry.time_to_serve_us,
+					&entry.filename,
+					&entry.request_protocol,
+					&entry.keepalive_requests,
+					if entry.error_log_id == -1 {
+						String::from("(none)")
+					} else {
+						entry.error_log_id.to_string()
+					},
+					&entry.request_method,
+					&entry.child_pid,
+					&entry.url_excl_query,
+					&entry.query,
+					&entry.handler,
+					&entry.time_to_serve_s,
+					&entry.server_name,
+					get_connection_status(entry.connection_status),
+					human_readable_bytes(entry.bytes_received as usize),
+					human_readable_bytes(entry.bytes_transferred as usize)
+				));
+			}
+			return lines.join("");
+		}
 		"footer" => {
 			return String::from(format!(
 				"<span class=\"ss-footer\"><a href=\"{}\">SimpleStats</a> {} by <a href=\"{}\">{}</a></span>",
@@ -753,6 +859,45 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 		}
 		_ => {
 			return String::from("(INVALID KEY)");
+		}
+	}
+
+	fn get_key_name(key: &str) -> &str {
+		match key {
+			"%a" => return "Client IP",
+			"%A" => return "Local IP",
+			"%B" => return "Response Size Excluding Headers",
+			"%b" => return "Response Size Including Hedaers",
+			"%D" => return "Time Taken (Microseconds)",
+			"%f" => return "Request Filename",
+			"%h" => return "Remote Hostname",
+			"%H" => return "Request Protocol",
+			"%{Referer}i" => return "Referer",
+			"%{User-Agent}i" => return "User Agent",
+			"%k" => return "Keepalive Requests",
+			"%l" => return "Remote Logname",
+			"%L" => return "Request Error Log ID",
+			"%m" => return "Request Method",
+			"%p" => return "Port",
+			"%P" => return "Child PID",
+			"%q" => return "Query",
+			"%r" => return "Request",
+			"%R" => return "Handler",
+			"%s" => return "Request Status",
+			"%>s" => return "Final Request Status",
+			"%t" => return "Time",
+			"%T" => return "Time Taken (Seconds)",
+			"%u" => return "User",
+			"%U" => return "URL Excluding Query",
+			"%v" => return "Canonical Server Name",
+			"%V" => return "Server Name",
+			"%X" => return "Connection Status",
+			"%I" => return "Bytes Received",
+			"%O" => return "Bytes Sent",
+			"%S" => return "Bytes Transferred",
+			_ => {
+				return "?";
+			}
 		}
 	}
 
@@ -854,5 +999,22 @@ fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
 
 	fn format_date_config(date: &DateTime<FixedOffset>, config: &Yaml) -> String {
 		return format_date(date, config["output-date-format"].as_str().unwrap());
+	}
+
+	fn get_connection_status(status: char) -> String {
+		match status {
+			'X' => {
+				return String::from("Aborted");
+			}
+			'+' => {
+				return String::from("Alive");
+			}
+			'-' => {
+				return String::from("Closed");
+			}
+			_ => {
+				return String::from("?");
+			}
+		}
 	}
 }
