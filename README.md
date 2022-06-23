@@ -23,4 +23,6 @@ The program's configuration file can be found at `~/.config/simplestats/simplest
 
 ## Command line arguments
 
-`no-write`: Run the program as usual, but do not save the output. The default configuration file and template will still be saved.
+|Argument|Description|
+|--------|-----------|
+|`no-write`|Run the program as usual, but do not save the output. The default configuration file and template will still be saved if they do not already exist.|
