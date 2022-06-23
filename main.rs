@@ -91,7 +91,7 @@ fn main() {
 
 	let initial_path = Path::join(&access_log_dir, &access_log_name);
 	let keys_str = &config["log-format"].as_str().unwrap();
-	let log_keys = extract_line_parts(keys_str, keys_str.chars().collect(), usize::MAX);
+	let log_keys = extract_line_parts(keys_str, keys_str.chars().collect(), Vec::new());
 
 	for entry in read_log(&initial_path, false, &log_keys, &config) {
 		entries.push(entry);
@@ -139,6 +139,7 @@ fn read_log(path: &Path, compressed: bool, log_keys: &Vec<String>, config: &Yaml
 			if line.chars().count() == 0 {
 				continue;
 			}
+			// TODO: ignore internal connections
 			entries.push(parse_line(&line, &log_keys, config));
 			line.clear();
 		}
@@ -155,6 +156,7 @@ fn read_log(path: &Path, compressed: bool, log_keys: &Vec<String>, config: &Yaml
 				if line.chars().count() == 0 {
 					continue;
 				}
+				// TODO: ignore internal connections
 				entries.push(parse_line(&line, &log_keys, config));
 			}
 		}
@@ -163,15 +165,24 @@ fn read_log(path: &Path, compressed: bool, log_keys: &Vec<String>, config: &Yaml
 }
 
 fn parse_line(line: &str, log_keys: &Vec<String>, config: &Yaml) -> Entry {
-	let parts = extract_line_parts(
-		line,
-		line.chars().collect(),
-		log_keys.iter().position(|k| k == "%h").unwrap(),
-	);
+	let keys_with_colons: Vec<&str> = vec!["%h", "%a", "%A", "%U", "%q", "%f"];
+	let mut indices_with_colons: Vec<usize> = Vec::new();
+	let mut i = 0usize;
+	for key in log_keys {
+		if keys_with_colons.contains(&key.as_str()) {
+			indices_with_colons.push(i);
+		}
+		i += 1;
+	}
+	let parts = extract_line_parts(line, line.chars().collect(), indices_with_colons);
 	return parse_parts(&parts, log_keys, config);
 }
 
-fn extract_line_parts(original: &str, line: Vec<char>, ip_index: usize) -> Vec<String> {
+fn extract_line_parts(
+	original: &str,
+	line: Vec<char>,
+	indices_with_colons: Vec<usize>,
+) -> Vec<String> {
 	let mut i: usize = 0;
 	let mut start: usize = 0;
 	let mut parts: Vec<String> = Vec::new();
@@ -180,10 +191,10 @@ fn extract_line_parts(original: &str, line: Vec<char>, ip_index: usize) -> Vec<S
 	let mut escaped = false;
 	let mut skip = false;
 	loop {
-		let is_ip = if ip_index == usize::MAX {
+		let is_ip = if indices_with_colons.len() == 0 {
 			false
 		} else {
-			parts.len() == ip_index
+			indices_with_colons.contains(&parts.len())
 		};
 		if i >= line.len() {
 			parts.push(
@@ -274,7 +285,7 @@ fn get_part(key: &str, parts: &Vec<String>, keys: &Vec<String>) -> String {
 			return parts[i].clone();
 		}
 	}
-	return String::from("-");
+	return String::new();
 }
 
 fn write_output(entries: &Vec<Entry>, log_keys: &Vec<String>, config: &Yaml) {
