@@ -731,33 +731,39 @@ fn get_output(key: &str, entries: &Vec<Entry>, log_keys: &Vec<String>, config: &
             return lines.join("");
         }
         "pages-rows" => {
-            let mut unique: LinkedHashMap<String, i32> = LinkedHashMap::new();
+            let mut lines: Vec<String> = Vec::new();
+            let mut unique: LinkedHashMap<String, (i32, &str)> = LinkedHashMap::new();
             let mut bw: HashMap<String, usize> = HashMap::new();
             for entry in entries {
-                unique.insert(
-                    entry.request.clone(),
-                    *unique.get(&entry.request).unwrap_or(&0i32) + 1,
-                );
+                let server = &entry.canonical_server_name;
+                if unique.contains_key(&entry.request) {
+                    unique.insert(
+                        entry.request.clone(),
+                        (unique.get(&entry.request).unwrap().0, server),
+                    );
+                } else {
+                    unique.insert(entry.request.clone(), (1, server));
+                }
                 bw.insert(
                     entry.request.clone(),
                     *bw.get(&entry.request).unwrap_or(&0usize) + entry.size as usize,
                 );
             }
-            unique = sort_map(unique);
-            let mut lines: Vec<String> = Vec::new();
+            unique = sort_map_tuple(unique);
             for (request, count) in unique {
                 let split: Vec<&str> = request.split(" ").collect();
                 lines.push(format!(
-					"<tr><td>{}</td><td class=\"ss-page-url\">{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
-					get_or_none(&split[0]).substring(0, 10),
-					(split.len() > 1).then(|| split[1]).unwrap_or("(none)"),
-					(split.len() > 2).then(|| split[2]).unwrap_or("(none)"),
-					count,
-					format_percent(count as usize, entries.len()),
-					human_readable_bytes(bw[&request]),
-					format_percent(bw[&request], total_size),
-					human_readable_bytes((bw[&request] / entries.len()) as usize)
-				));
+                        "<tr><td>{}</td><td>{}</td><td class=\"ss-page-url\">{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
+                        count.1,
+                        get_or_none(&split[0]).substring(0, 10),
+                        (split.len() > 1).then(|| split[1]).unwrap_or("(none)"),
+                        (split.len() > 2).then(|| split[2]).unwrap_or("(none)"),
+                        count.0,
+                        format_percent(count.0 as usize, entries.len()),
+                        human_readable_bytes(bw[&request]),
+                        format_percent(bw[&request], total_size),
+                        human_readable_bytes((bw[&request] / entries.len()) as usize)
+                    ));
             }
             return lines.join("");
         }
@@ -945,6 +951,18 @@ fn get_output(key: &str, entries: &Vec<Entry>, log_keys: &Vec<String>, config: &
         let mut v: Vec<(&String, &i32)> = map.iter().collect();
         v.sort_by(|a, b| b.1.cmp(a.1));
         let mut m: LinkedHashMap<String, i32> = LinkedHashMap::new();
+        for entry in v {
+            m.insert(entry.0.to_string(), *entry.1);
+        }
+        return m;
+    }
+
+    fn sort_map_tuple(
+        map: LinkedHashMap<String, (i32, &str)>,
+    ) -> LinkedHashMap<String, (i32, &str)> {
+        let mut v: Vec<(&String, &(i32, &str))> = map.iter().collect();
+        v.sort_by(|a, b| b.1 .0.cmp(&a.1 .0));
+        let mut m: LinkedHashMap<String, (i32, &str)> = LinkedHashMap::new();
         for entry in v {
             m.insert(entry.0.to_string(), *entry.1);
         }
