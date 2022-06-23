@@ -12,6 +12,7 @@ chrono = "0.4"
 linked-hash-map = "0.5.4"
 shellexpand = "2.1.0"
 flate2 = "1.0.24"
+regex = "1.5.6"
 
 [dependencies.yaml-rust]
 git = "https://github.com/chyh1990/yaml-rust.git"

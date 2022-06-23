@@ -4,6 +4,7 @@ use chrono::Local;
 use chrono::TimeZone;
 use flate2::read::GzDecoder;
 use linked_hash_map::LinkedHashMap;
+use regex::Regex;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::env::args;
@@ -127,6 +128,8 @@ fn main() {
 }
 
 fn read_log(path: &Path, compressed: bool, log_keys: &Vec<String>, config: &Yaml) -> Vec<Entry> {
+	let local_regex =
+		Regex::new("^localhost$|^127(?:.[0-9]+){0,2}.[0-9]+$|^(?:0*:)*?:?0*1$").unwrap();
 	let mut entries = Vec::new();
 	if compressed {
 		let file = File::open(path).expect(&format!(
@@ -139,8 +142,10 @@ fn read_log(path: &Path, compressed: bool, log_keys: &Vec<String>, config: &Yaml
 			if line.chars().count() == 0 {
 				continue;
 			}
-			// TODO: ignore internal connections
-			entries.push(parse_line(&line, &log_keys, config));
+			let entry = parse_line(&line, &log_keys, config);
+			if !local_regex.is_match(&entry.ip) {
+				entries.push(entry);
+			}
 			line.clear();
 		}
 	} else {
@@ -156,8 +161,10 @@ fn read_log(path: &Path, compressed: bool, log_keys: &Vec<String>, config: &Yaml
 				if line.chars().count() == 0 {
 					continue;
 				}
-				// TODO: ignore internal connections
-				entries.push(parse_line(&line, &log_keys, config));
+				let entry = parse_line(&line, &log_keys, config);
+				if !local_regex.is_match(&entry.ip) {
+					entries.push(entry);
+				}
 			}
 		}
 	}
