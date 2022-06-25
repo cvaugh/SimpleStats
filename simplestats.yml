@@ -27,10 +27,6 @@ output-date-format: "%e %b %Y %I:%M:%S %p"
 # <address> will be replaced with the IP address.
 whois-tool: "https://iplocation.io/ip/<address>"
 
-# Path to an HTML file to use as a template for the output.
-# Leave empty to use the default template.
-template: 
-
 # If true, internal requests from a loopback address (i.e. 127.0.0.1 or ::1) will be ignored.
 ignore-internal: true
 
@@ -41,41 +37,49 @@ ignore-internal: true
 # earliest entry in the log.
 # Leave the value of a key blank to disable it.
 template-replacements:
-  generated-date: generated-date
-  first-visit: first-visit
-  latest-visit: latest-visit
-  overall-visitors: overall-visitors
-  overall-visits: overall-visits
-  overall-bandwidth: overall-bandwidth
-  yearly-rows: yearly-rows
-  yearly-avg-visitors: yearly-avg-visitors
-  yearly-avg-visits: yearly-avg-visits
-  yearly-avg-bandwidth: yearly-avg-bandwidth
-  monthly-rows: monthly-rows
-  monthly-avg-visitors: monthly-avg-visitors
-  monthly-avg-visits: monthly-avg-visits
-  monthly-avg-bandwidth: monthly-avg-bandwidth
-  day-of-month-rows: day-of-month-rows
-  day-of-month-avg-visits: day-of-month-avg-visits
-  day-of-month-avg-bandwidth: day-of-month-avg-bandwidth
-  days-of-week-rows: days-of-week-rows
-  hourly-rows: hourly-rows
-  ip-rows: ip-rows
-  users-rows: users-rows
-  agents-rows: agents-rows
-  pages-rows: pages-rows
-  referers-rows: referers-rows
-  responses-rows: responses-rows
-  #full-log-rows: full-log-rows
-  footer: footer
-
-# Truncate long user agents after this many characters.
+  generated-date: true
+  first-visit: true
+  latest-visit: true
+  overall-visitors: true
+  overall-visits: true
+  overall-bandwidth: true
+  yearly-rows: true
+  yearly-avg-visitors: true
+  yearly-avg-visits: true
+  yearly-avg-bandwidth: true
+  monthly-rows: true
+  monthly-avg-visitors: true
+  monthly-avg-visits: true
+  monthly-avg-bandwidth: true
+  day-of-month-rows: true
+  day-of-month-avg-visits: true
+  day-of-month-avg-bandwidth: true
+  days-of-week-rows: true
+  hourly-rows: true
+  ip-rows: true
+  users-rows: true
+  agents-rows: true
+  pages-rows: true
+  referers-rows: true
+  responses-rows: true
+  full-log-rows: false
+  footer: true
+  
+# Truncate long strings after this many characters.
 # Set to 0 to disable truncation.
-truncate-user-agent: 100
+truncate:
+  user-agent: 100
+  request-url: 100
+  request-method: 7
+  referer: 70
 
-# If a user agent is longer than the value defined above, this determines how the full user
-# agent can be viewed.
-#   hover: Show the full user agent when hovering over the truncated user agent
-#   click: Show the full user agent in an alert (requires JavaScript)
-#   none: Do not show the full user agent
-show-full-agent: hover
+# If a string is longer than the value defined above, this determines how the full string
+# can be viewed.
+#   hover: Show the full string when hovering over the truncated string
+#   click: Show the full string in an alert (requires JavaScript)
+#   none: Do not show the full string
+show-full-string:
+  user-agent: hover
+  request-url: hover
+  request-method: hover
+  referer: hover

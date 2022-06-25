@@ -58,17 +58,14 @@ fn main() {
             no_write = true;
         }
     }
-    let template = include_bytes!("template.html");
+    let template_bytes = include_bytes!("template.html");
+    let template = std::str::from_utf8(template_bytes).unwrap();
     let default_config = include_bytes!("simplestats.yml");
     let config_dir = &shellexpand::tilde("~/.config/simplestats").to_string();
     fs::create_dir_all(config_dir).expect("Unable to create config directory");
     let config_path = Path::join(Path::new(&config_dir), "simplestats.yml");
     if !config_path.exists() {
         fs::write(&config_path, default_config).expect("Unable to write default config");
-    }
-    let template_path = Path::join(Path::new(&config_dir), "template.html");
-    if !template_path.exists() {
-        fs::write(&template_path, template).expect("Unable to write default template");
     }
     let config_contents = fs::read_to_string(&config_path);
     if config_contents.is_err() {
@@ -123,7 +120,7 @@ fn main() {
         }
     }
     if !no_write {
-        write_output(&entries, &log_keys, config);
+        write_output(&entries, &log_keys, &template, config);
     }
 }
 
@@ -295,38 +292,22 @@ fn get_part(key: &str, parts: &Vec<String>, keys: &Vec<String>) -> String {
     return String::new();
 }
 
-fn write_output(entries: &Vec<Entry>, log_keys: &Vec<String>, config: &Yaml) {
-    let template_config = &config["template"];
-    let template_path_str = shellexpand::tilde(
-        template_config
-            .as_str()
-            .unwrap_or("~/.config/simplestats/template.html"),
-    )
-    .to_string();
-    let template_path = if template_config.is_null() {
-        Path::new(&template_path_str)
-    } else {
-        Path::new(&template_path_str)
-    };
-    let template_lines = fs::read_to_string(&template_path);
-    if template_lines.is_err() {
-        eprintln!("error: Failed to read template at {:?}\nerror: Please ensure that the program has read/write access to the specified file.",
-		&template_path);
-        process::exit(1);
-    }
-
-    let mut template = template_lines.unwrap();
-    let replacements = &config["template-replacements"].as_hash().unwrap();
-    for (key, value) in replacements.into_iter() {
-        template = template.replace(
-            &format!("{{{{{}}}}}", value.as_str().unwrap()),
-            get_output(key.as_str().unwrap(), entries, &log_keys, &config).as_str(),
-        );
+fn write_output(entries: &Vec<Entry>, log_keys: &Vec<String>, template: &str, config: &Yaml) {
+    let mut template_mut = String::from(template);
+    let sections = &config["output-sections"].as_hash().unwrap();
+    for (key, value) in sections.into_iter() {
+        if value.as_bool().unwrap() {
+            let k = key.as_str().unwrap();
+            template_mut = template_mut.replace(
+                &format!("{{{{{}}}}}", k),
+                &get_output(k, entries, &log_keys, &config),
+            );
+        }
     }
 
     let output = shellexpand::tilde(&config["output-file"].as_str().unwrap()).to_string();
 
-    let result = fs::write(&output, template);
+    let result = fs::write(&output, template_mut);
 
     if result.is_err() {
         eprintln!(
@@ -681,33 +662,9 @@ fn get_output(key: &str, entries: &Vec<Entry>, log_keys: &Vec<String>, config: &
                     .get_mut(&agent)
                     .unwrap()
                     .sort_by_key(|k| k.timestamp_millis());
-                let truncate = config["truncate-user-agent"].as_i64().unwrap() as usize;
-                if truncate != 0 && agent.len() > truncate {
-                    let a = &get_or_none(&agent)[..truncate];
-                    let show_agent: String;
-                    match config["show-full-agent"]
-                        .as_str()
-                        .unwrap()
-                        .to_lowercase()
-                        .as_str()
-                    {
-                        "hover" => {
-                            show_agent = format!("<abbr title=\"{}\">{}...</abbr>", agent, a);
-                        }
-                        "click" => {
-                            show_agent = format!(
-                                "<abbr onclick='javascript:prompt(\"Full user agent:\", \"{}\");'
-							title=\"Click to display full user agent\">{}...</abbr>",
-                                agent, a
-                            );
-                        }
-                        _ => {
-                            show_agent = format!("{}...", a);
-                        }
-                    }
-                    lines.push(format!(
+                lines.push(format!(
 						"<tr><td class=\"ss-user-agent\">{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
-						&show_agent,
+						truncate_string(&agent, "user-agent", config),
 						unique_visitors.len(),
 						count,
 						format_percent(count as usize, entries.len()),
@@ -715,18 +672,6 @@ fn get_output(key: &str, entries: &Vec<Entry>, log_keys: &Vec<String>, config: &
 						format_percent(bw[&agent], total_size),
 						format_date_config(&dates[&agent][dates[&agent].len() - 1], config))
 					);
-                } else {
-                    lines.push(format!(
-						"<tr><td class=\"ss-user-agent\">{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
-						get_or_none(&agent),
-						unique_visitors.len(),
-						count,
-						format_percent(count as usize, entries.len()),
-						human_readable_bytes(bw[&agent]),
-						format_percent(bw[&agent], total_size),
-						format_date_config(&dates[&agent][dates[&agent].len() - 1], config))
-					);
-                }
             }
             return lines.join("");
         }
@@ -755,8 +700,8 @@ fn get_output(key: &str, entries: &Vec<Entry>, log_keys: &Vec<String>, config: &
                 lines.push(format!(
                         "<tr><td>{}</td><td>{}</td><td class=\"ss-page-url\">{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
                         count.1,
-                        get_or_none(&split[0]).substring(0, 10),
-                        (split.len() > 1).then(|| split[1]).unwrap_or("(none)"),
+                        truncate_string(get_or_none(&split[0]).substring(0, 10), "request-method", config),
+                        (split.len() > 1).then(|| truncate_string(split[1], "request-url", config)).unwrap_or(String::from("(none)")),
                         (split.len() > 2).then(|| split[2]).unwrap_or("(none)"),
                         count.0,
                         format_percent(count.0 as usize, entries.len()),
@@ -785,7 +730,7 @@ fn get_output(key: &str, entries: &Vec<Entry>, log_keys: &Vec<String>, config: &
             for (referer, count) in unique {
                 lines.push(format!(
 					"<tr><td class=\"ss-referer\">{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
-					get_or_none(&referer),
+					truncate_string(&referer, "referer", config),
 					count,
 					format_percent(count as usize, entries.len()),
 					human_readable_bytes(bw[&referer]),
@@ -1051,6 +996,35 @@ fn get_output(key: &str, entries: &Vec<Entry>, log_keys: &Vec<String>, config: &
             _ => {
                 return String::from("?");
             }
+        }
+    }
+
+    fn truncate_string(s: &str, key: &str, config: &Yaml) -> String {
+        let truncate = config["truncate"][key].as_i64().unwrap() as usize;
+        if truncate != 0usize && s.len() > truncate {
+            let truncated = &get_or_none(&s)[..truncate];
+            match config["show-full-string"][key]
+                .as_str()
+                .unwrap()
+                .to_lowercase()
+                .as_str()
+            {
+                "hover" => {
+                    return format!("<abbr title=\"{}\">{}...</abbr>", s, truncated);
+                }
+                "click" => {
+                    return format!(
+                        "<abbr onclick='javascript:prompt(\"Full string:\", \"{}\");'
+							title=\"Click to display full string\">{}...</abbr>",
+                        s, truncated
+                    );
+                }
+                _ => {
+                    return format!("{}...", truncated);
+                }
+            }
+        } else {
+            return get_or_none(s).to_string();
         }
     }
 }
