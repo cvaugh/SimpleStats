@@ -30,13 +30,7 @@ whois-tool: "https://iplocation.io/ip/<address>"
 # If true, internal requests from a loopback address (i.e. 127.0.0.1 or ::1) will be ignored.
 ignore-internal: true
 
-# Each of the following strings will be replaced by data if it is found surrounded by {{brackets}}
-# within the template file. For example,
-#     first-visit: abc
-# would cause every instance of {{abc}} within the template to be replaced with the time of the
-# earliest entry in the log.
-# Leave the value of a key blank to disable it.
-template-replacements:
+output-sections:
   generated-date: true
   first-visit: true
   latest-visit: true
