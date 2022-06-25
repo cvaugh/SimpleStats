@@ -58,8 +58,6 @@ fn main() {
             no_write = true;
         }
     }
-    let template_bytes = include_bytes!("template.html");
-    let template = std::str::from_utf8(template_bytes).unwrap();
     let default_config = include_bytes!("simplestats.yml");
     let config_dir = &shellexpand::tilde("~/.config/simplestats").to_string();
     fs::create_dir_all(config_dir).expect("Unable to create config directory");
@@ -120,7 +118,7 @@ fn main() {
         }
     }
     if !no_write {
-        write_output(&entries, &log_keys, &template, config);
+        write_output(&entries, &log_keys, config);
     }
 }
 
@@ -292,13 +290,13 @@ fn get_part(key: &str, parts: &Vec<String>, keys: &Vec<String>) -> String {
     return String::new();
 }
 
-fn write_output(entries: &Vec<Entry>, log_keys: &Vec<String>, template: &str, config: &Yaml) {
-    let mut template_mut = String::from(template);
+fn write_output(entries: &Vec<Entry>, log_keys: &Vec<String>, config: &Yaml) {
+    let mut template = String::from(std::str::from_utf8(include_bytes!("template.html")).unwrap());
     let sections = &config["output-sections"].as_hash().unwrap();
     for (key, value) in sections.into_iter() {
         if value.as_bool().unwrap() {
             let k = key.as_str().unwrap();
-            template_mut = template_mut.replace(
+            template = template.replace(
                 &format!("{{{{{}}}}}", k),
                 &get_output(k, entries, &log_keys, &config),
             );
@@ -307,7 +305,7 @@ fn write_output(entries: &Vec<Entry>, log_keys: &Vec<String>, template: &str, co
 
     let output = shellexpand::tilde(&config["output-file"].as_str().unwrap()).to_string();
 
-    let result = fs::write(&output, template_mut);
+    let result = fs::write(&output, template);
 
     if result.is_err() {
         eprintln!(
