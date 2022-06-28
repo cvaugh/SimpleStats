@@ -328,7 +328,7 @@ fn write_output(entries: &Vec<Entry>, log_keys: &Vec<&str>, config: &Yaml) {
     'outer: for (key, value) in sections {
         for k in value {
             if !log_keys.contains(&k) {
-                template = template.replace(&format!("{{{{{}}}}}", key), "(missing data)");
+                template = template.replace(&format!("{{{{{}}}}}", key), "");
                 continue 'outer;
             }
         }
