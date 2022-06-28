@@ -298,6 +298,7 @@ fn write_output(entries: &Vec<Entry>, log_keys: &Vec<&str>, config: &Yaml) {
         "%O",
         "%{Referer}i",
         "%{User-Agent}i",
+        "%D",
     ];
     let sections: HashMap<&str, Vec<&str>> = HashMap::from([
         ("generated-date", vec![]),
@@ -314,6 +315,7 @@ fn write_output(entries: &Vec<Entry>, log_keys: &Vec<&str>, config: &Yaml) {
         ("pages-table", vec!["%r", "%O", "%v"]),
         ("referers-table", vec!["%{Referer}i", "%O"]),
         ("responses-table", vec!["%>s", "%O"]),
+        ("time-taken-table", vec!["%D"]),
         ("footer", vec![]),
     ]);
     for key in log_keys {
@@ -398,6 +400,9 @@ fn get_output(key: &str, entries: &Vec<Entry>, log_keys: &Vec<&str>, config: &Ya
         }
         "responses-table" => {
             return get_responses_table(entries, total_size);
+        }
+        "time-taken-table" => {
+            return get_time_taken_table(entries);
         }
         "full-log" => {
             return get_full_log(entries, log_keys, config);
@@ -851,6 +856,63 @@ fn get_responses_table(entries: &Vec<Entry>, total_size: usize) -> String {
     }
     let template = String::from(
         std::str::from_utf8(include_bytes!("templates/responses-table.html")).unwrap(),
+    );
+    return template.replace("{{rows}}", &lines.join(""));
+}
+
+fn get_time_taken_table(entries: &Vec<Entry>) -> String {
+    let mut times: LinkedHashMap<String, i32> = LinkedHashMap::new();
+    for entry in entries {
+        let t = entry.time_to_serve_us;
+        if t < 100i64 {
+            times.insert(
+                String::from("&lt; 100"),
+                *times.get("&lt; 100").unwrap_or(&0i32) + 1,
+            );
+        } else if t < 500i64 {
+            times.insert(
+                String::from("100-499"),
+                *times.get("100-499").unwrap_or(&0i32) + 1,
+            );
+        } else if t < 1000i64 {
+            times.insert(
+                String::from("500-999"),
+                *times.get("500-999").unwrap_or(&0i32) + 1,
+            );
+        } else if t < 5000i64 {
+            times.insert(
+                String::from("1000-4999"),
+                *times.get("1000-4999").unwrap_or(&0i32) + 1,
+            );
+        } else if t < 10000i64 {
+            times.insert(
+                String::from("5000-9999"),
+                *times.get("5000-9999").unwrap_or(&0i32) + 1,
+            );
+        } else if t < 50000i64 {
+            times.insert(
+                String::from("10000-49999"),
+                *times.get("10000-49999").unwrap_or(&0i32) + 1,
+            );
+        } else {
+            times.insert(
+                String::from("&geq; 50000"),
+                *times.get("&geq; 50000").unwrap_or(&0i32) + 1,
+            );
+        }
+    }
+    times = sort_map(times);
+    let mut lines: Vec<String> = Vec::new();
+    for (key, value) in times {
+        lines.push(format!(
+            "<tr><td>{}</td><td>{}</td><td>{}</td></tr>",
+            key,
+            value,
+            format_percent(value as usize, entries.len())
+        ));
+    }
+    let template = String::from(
+        std::str::from_utf8(include_bytes!("templates/time-taken-table.html")).unwrap(),
     );
     return template.replace("{{rows}}", &lines.join(""));
 }
