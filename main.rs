@@ -1189,13 +1189,18 @@ fn truncate_string(s: &str, key: &str, config: &Yaml) -> String {
             .as_str()
         {
             "hover" => {
-                return format!("<abbr title=\"{}\">{}...</abbr>", s, truncated);
+                return format!(
+                    "<abbr title=\"{}\">{}...</abbr>",
+                    s.replace("\"", "&quot;").replace("\\", "&bsol;"),
+                    truncated
+                );
             }
             "click" => {
                 return format!(
                     "<abbr onclick='javascript:prompt(\"Full string:\", \"{}\");'
                         title=\"Click to display full string\">{}...</abbr>",
-                    s, truncated
+                    s.replace("\"", "&quot;").replace("\\", "&bsol;"),
+                    truncated
                 );
             }
             _ => {
