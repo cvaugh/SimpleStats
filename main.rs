@@ -122,7 +122,7 @@ fn main() {
     }
 }
 
-fn read_log(path: &Path, compressed: bool, log_keys: &Vec<String>, config: &Yaml) -> Vec<Entry> {
+fn read_log(path: &Path, compressed: bool, log_keys: &Vec<&str>, config: &Yaml) -> Vec<Entry> {
     let local_regex =
         Regex::new("^localhost$|^127(?:.[0-9]+){0,2}.[0-9]+$|^(?:0*:)*?:?0*1$").unwrap();
     let mut entries = Vec::new();
@@ -166,12 +166,12 @@ fn read_log(path: &Path, compressed: bool, log_keys: &Vec<String>, config: &Yaml
     return entries;
 }
 
-fn parse_line(line: &str, log_keys: &Vec<String>, config: &Yaml) -> Entry {
+fn parse_line(line: &str, log_keys: &Vec<&str>, config: &Yaml) -> Entry {
     let keys_with_colons: Vec<&str> = vec!["%h", "%a", "%A", "%U", "%q", "%f"];
     let mut indices_with_colons: Vec<usize> = Vec::new();
     let mut i = 0usize;
     for key in log_keys {
-        if keys_with_colons.contains(&key.as_str()) {
+        if keys_with_colons.contains(&key) {
             indices_with_colons.push(i);
         }
         i += 1;
@@ -184,10 +184,10 @@ fn extract_line_parts(
     original: &str,
     line: Vec<char>,
     indices_with_colons: Vec<usize>,
-) -> Vec<String> {
+) -> Vec<&str> {
     let mut i: usize = 0;
     let mut start: usize = 0;
-    let mut parts: Vec<String> = Vec::new();
+    let mut parts: Vec<&str> = Vec::new();
     let mut quote_escape = false;
     let mut bracket_escape = false;
     let mut escaped = false;
@@ -199,11 +199,7 @@ fn extract_line_parts(
             indices_with_colons.contains(&parts.len())
         };
         if i >= line.len() {
-            parts.push(
-                original
-                    .substring(start, if escaped { i - 1 } else { i })
-                    .to_string(),
-            );
+            parts.push(original.substring(start, if escaped { i - 1 } else { i }));
             break;
         }
         if !skip {
@@ -227,9 +223,9 @@ fn extract_line_parts(
         } else if line[i] == ' ' || (!is_ip && line[i] == ':') {
             if !(quote_escape || bracket_escape) {
                 if escaped {
-                    parts.push(original.substring(start, i - 1).to_string());
+                    parts.push(&original.substring(start, i - 1));
                 } else {
-                    parts.push(original.substring(start, i).to_string());
+                    parts.push(original.substring(start, i));
                 }
                 start = i + 1;
                 i += 1;
@@ -241,7 +237,7 @@ fn extract_line_parts(
     return parts;
 }
 
-fn parse_parts(parts: &Vec<String>, keys: &Vec<String>, config: &Yaml) -> Entry {
+fn parse_parts(parts: &Vec<&str>, keys: &Vec<&str>, config: &Yaml) -> Entry {
     let entry = Entry {
         ip: get_part("%h", parts, keys),
         user: get_part("%u", parts, keys),
@@ -281,26 +277,65 @@ fn parse_parts(parts: &Vec<String>, keys: &Vec<String>, config: &Yaml) -> Entry 
     return entry;
 }
 
-fn get_part(key: &str, parts: &Vec<String>, keys: &Vec<String>) -> String {
+fn get_part(key: &str, parts: &Vec<&str>, keys: &Vec<&str>) -> String {
     for i in 0..parts.len() {
         if keys[i].eq(key) {
-            return parts[i].clone();
+            return String::from(parts[i]);
         }
     }
     return String::new();
 }
 
-fn write_output(entries: &Vec<Entry>, log_keys: &Vec<String>, config: &Yaml) {
-    let mut template = String::from(std::str::from_utf8(include_bytes!("template.html")).unwrap());
-    let sections = &config["output-sections"].as_hash().unwrap();
-    for (key, value) in sections.into_iter() {
-        if value.as_bool().unwrap() {
-            let k = key.as_str().unwrap();
-            template = template.replace(
-                &format!("{{{{{}}}}}", k),
-                &get_output(k, entries, &log_keys, &config),
-            );
+fn write_output(entries: &Vec<Entry>, log_keys: &Vec<&str>, config: &Yaml) {
+    let supported_keys: Vec<&str> = vec![
+        "%v",
+        "%p",
+        "%h",
+        "%u",
+        "%t",
+        "%r",
+        "%>s",
+        "%O",
+        "%{Referer}i",
+        "%{User-Agent}i",
+    ];
+    let sections: HashMap<&str, Vec<&str>> = HashMap::from([
+        ("generated-date", vec![]),
+        ("header", vec!["%t"]),
+        ("overall", vec!["%h", "%O"]),
+        ("yearly-table", vec!["%t", "%O", "%h"]),
+        ("monthly-table", vec!["%t", "%O", "%h"]),
+        ("day-of-month-table", vec!["%t", "%O", "%h"]),
+        ("day-of-week-table", vec!["%t", "%O", "%h"]),
+        ("hourly-table", vec!["%t", "%O", "%h"]),
+        ("ip-table", vec!["%t", "%O", "%h"]),
+        ("users-table", vec!["%u", "%t", "%O"]),
+        ("user-agent-table", vec!["%{User-Agent}i", "%t", "%O", "%h"]),
+        ("pages-table", vec!["%r", "%O", "%v"]),
+        ("referers-table", vec!["%{Referer}i", "%O"]),
+        ("responses-table", vec!["%>s", "%O"]),
+        ("footer", vec![]),
+    ]);
+    for key in log_keys {
+        if supported_keys.contains(&key) {
+            println!("Found supported key: {} ({})", key, get_key_name(key));
+        } else {
+            println!("Unsupported key: {} ({})", key, get_key_name(key));
         }
+    }
+    let mut template =
+        String::from(std::str::from_utf8(include_bytes!("templates/main.html")).unwrap());
+    'outer: for (key, value) in sections {
+        for k in value {
+            if !log_keys.contains(&k) {
+                eprintln!("Missing key for {}: {}", key, k);
+                continue 'outer;
+            }
+        }
+        template = template.replace(
+            &format!("{{{{{}}}}}", key),
+            &get_output(key, entries, &log_keys, &config),
+        );
     }
 
     let output = shellexpand::tilde(&config["output-file"].as_str().unwrap()).to_string();
@@ -316,263 +351,299 @@ fn write_output(entries: &Vec<Entry>, log_keys: &Vec<String>, config: &Yaml) {
     }
 }
 
-fn get_output(key: &str, entries: &Vec<Entry>, log_keys: &Vec<String>, config: &Yaml) -> String {
+fn get_output(key: &str, entries: &Vec<Entry>, log_keys: &Vec<&str>, config: &Yaml) -> String {
     let mut total_size = 0usize;
     for entry in entries {
         total_size += entry.size as usize;
     }
     match key {
         "generated-date" => {
-            return Local::now()
-                .format(&config["output-date-format"].as_str().unwrap())
-                .to_string();
+            return get_generated_date(config);
         }
-        "first-visit" => {
-            let mut dates: Vec<DateTime<FixedOffset>> = Vec::new();
-            for entry in entries {
-                dates.push(entry.time);
-            }
-            dates.sort_by_key(|k| k.timestamp_millis());
-            return format_date_config(&dates[0], &config);
+        "header" => {
+            return get_header(entries, config);
         }
-        "latest-visit" => {
-            let mut dates: Vec<DateTime<FixedOffset>> = Vec::new();
-            for entry in entries {
-                dates.push(entry.time);
-            }
-            dates.sort_by_key(|k| k.timestamp_millis());
-            return format_date_config(&dates[dates.len() - 1], &config);
+        "overall" => {
+            return get_overall(entries, total_size);
         }
-        "overall-visitors" => {
-            let mut count = 0;
-            let mut added: Vec<String> = Vec::new();
-            for entry in entries {
-                if !added.contains(&entry.ip) {
-                    count += 1;
-                    added.push(entry.ip.clone());
-                }
-            }
-            return count.to_string();
+        "yearly-table" => {
+            return get_yearly_table(entries, total_size);
         }
-        "overall-visits" => {
-            return entries.len().to_string();
+        "monthly-table" => {
+            return get_monthly_table(entries, total_size);
         }
-        "overall-bandwidth" => {
-            return human_readable_bytes(total_size);
+        "day-of-month-table" => {
+            return get_day_of_month_table(entries, total_size);
         }
-        "yearly-rows" => {
-            let mut years: HashMap<i32, i32> = HashMap::new();
-            let mut sizes: HashMap<i32, usize> = HashMap::new();
-            let mut unique: HashMap<i32, HashSet<&str>> = HashMap::new();
-            for entry in entries {
-                let year = format_date(&entry.time, "%Y").parse::<i32>().unwrap();
-                years.insert(year, *years.get(&year).unwrap_or(&0i32) + 1);
-                sizes.insert(
-                    year,
-                    *sizes.get(&year).unwrap_or(&0usize) + entry.size as usize,
-                );
-                if !unique.contains_key(&year) {
-                    unique.insert(year, HashSet::new());
-                }
-                unique.get_mut(&year).unwrap().insert(&entry.ip);
-            }
-            let mut lines: Vec<String> = Vec::new();
-            for (year, count) in years {
-                lines.push(format!(
-                    "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
-                    year,
-                    unique[&year].len(),
-                    count,
-                    format_percent(count as usize, entries.len()),
-                    human_readable_bytes(sizes[&year]),
-                    format_percent(sizes[&year], total_size)
-                ));
-            }
-            return lines.join("");
+        "day-of-week-table" => {
+            return get_day_of_week_table(entries, total_size);
         }
-        "yearly-avg-visitors" => {
-            return get_average_visitors(entries, "%Y");
+        "hourly-table" => {
+            return get_hourly_table(entries, total_size);
         }
-        "yearly-avg-visits" => {
-            return get_average_visits(entries, "%Y");
+        "ip-table" => {
+            return get_ip_table(entries, total_size, config);
         }
-        "yearly-avg-bandwidth" => {
-            return get_average_bandwidth(entries, "%Y");
+        "users-table" => {
+            return get_users_table(entries, total_size, config);
         }
-        "monthly-rows" => {
-            let month_names = vec![
-                "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-            ];
-            let mut months: HashMap<i32, i32> = HashMap::new();
-            let mut sizes: HashMap<i32, usize> = HashMap::new();
-            let mut unique: HashMap<i32, HashSet<&str>> = HashMap::new();
-            for entry in entries {
-                let month = format_date(&entry.time, "%m").parse::<i32>().unwrap();
-                months.insert(month, *months.get(&month).unwrap_or(&0i32) + 1);
-                sizes.insert(
-                    month,
-                    *sizes.get(&month).unwrap_or(&0usize) + entry.size as usize,
-                );
-                if !unique.contains_key(&month) {
-                    unique.insert(month, HashSet::new());
-                }
-                unique.get_mut(&month).unwrap().insert(&entry.ip);
-            }
-            let mut lines: Vec<String> = Vec::new();
-            for month in 1..13 {
-                if !months.contains_key(&month) {
-                    months.insert(month, 0);
-                    sizes.insert(month, 0);
-                    unique.insert(month, HashSet::new());
-                }
-                lines.push(format!(
-                    "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
-                    month_names[(month - 1) as usize],
-                    unique[&month].len(),
-                    months[&month],
-                    format_percent(months[&month] as usize, entries.len()),
-                    human_readable_bytes(sizes[&month]),
-                    format_percent(sizes[&month], total_size)
-                ));
-            }
-            return lines.join("");
+        "user-agent-table" => {
+            return get_user_agent_table(entries, total_size, config);
         }
-        "monthly-avg-visitors" => {
-            return get_average_visitors(entries, "%m");
+        "pages-table" => {
+            return get_pages_table(entries, total_size, config);
         }
-        "monthly-avg-visits" => {
-            return get_average_visits(entries, "%m");
+        "referers-table" => {
+            return get_referers_table(entries, total_size, config);
         }
-        "monthly-avg-bandwidth" => {
-            return get_average_bandwidth(entries, "%m");
+        "responses-table" => {
+            return get_responses_table(entries, total_size);
         }
-        "day-of-month-rows" => {
-            let mut days: HashMap<i32, i32> = HashMap::new();
-            let mut sizes: HashMap<i32, usize> = HashMap::new();
-            for entry in entries {
-                let day = format_date(&entry.time, "%d").parse::<i32>().unwrap();
-                days.insert(day, *days.get(&day).unwrap_or(&0i32) + 1);
-                sizes.insert(
-                    day,
-                    *sizes.get(&day).unwrap_or(&0usize) + entry.size as usize,
-                );
-            }
-            let mut lines: Vec<String> = Vec::new();
-            for day in 1..32 {
-                if !days.contains_key(&day) {
-                    days.insert(day, 0);
-                    sizes.insert(day, 0);
-                }
-                lines.push(format!(
-                    "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
-                    day,
-                    days[&day],
-                    format_percent(days[&day] as usize, entries.len()),
-                    human_readable_bytes(sizes[&day]),
-                    format_percent(sizes[&day], total_size)
-                ));
-            }
-            return lines.join("");
+        "full-log" => {
+            return get_full_log(entries, log_keys, config);
         }
-        "day-of-month-avg-visits" => {
-            return get_average_visits(entries, "%d");
+        "footer" => {
+            return get_footer();
         }
-        "day-of-month-avg-bandwidth" => {
-            return get_average_bandwidth(entries, "%d");
+        _ => {
+            return String::from("(INVALID KEY)");
         }
-        "days-of-week-rows" => {
-            let day_names = vec!["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-            let mut days: HashMap<i32, i32> = HashMap::new();
-            let mut sizes: HashMap<i32, usize> = HashMap::new();
-            for entry in entries {
-                let day = format_date(&entry.time, "%w").parse::<i32>().unwrap();
-                days.insert(day, *days.get(&day).unwrap_or(&0i32) + 1);
-                sizes.insert(
-                    day,
-                    *sizes.get(&day).unwrap_or(&0usize) + entry.size as usize,
-                );
-            }
-            let mut lines: Vec<String> = Vec::new();
-            for day in 0..7 {
-                if !days.contains_key(&day) {
-                    days.insert(day, 0);
-                    sizes.insert(day, 0);
-                }
-                lines.push(format!(
-                    "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
-                    day_names[day as usize],
-                    days[&day],
-                    format_percent(days[&day] as usize, entries.len()),
-                    human_readable_bytes(sizes[&day]),
-                    format_percent(sizes[&day], total_size)
-                ));
-            }
-            return lines.join("");
+    }
+}
+
+fn get_generated_date(config: &Yaml) -> String {
+    return Local::now()
+        .format(&config["output-date-format"].as_str().unwrap())
+        .to_string();
+}
+
+fn get_header(entries: &Vec<Entry>, config: &Yaml) -> String {
+    let mut dates: Vec<DateTime<FixedOffset>> = Vec::new();
+    for entry in entries {
+        dates.push(entry.time);
+    }
+    dates.sort_by_key(|k| k.timestamp_millis());
+    let template =
+        String::from(std::str::from_utf8(include_bytes!("templates/header.html")).unwrap());
+    return template
+        .replace("{{first-visit}}", &format_date_config(&dates[0], &config))
+        .replace(
+            "{{latest-visit}}",
+            &format_date_config(&dates[dates.len() - 1], &config),
+        );
+}
+
+fn get_overall(entries: &Vec<Entry>, total_size: usize) -> String {
+    let mut count = 0;
+    let mut added: Vec<String> = Vec::new();
+    for entry in entries {
+        if !added.contains(&entry.ip) {
+            count += 1;
+            added.push(entry.ip.clone());
         }
-        "hourly-rows" => {
-            let mut hours: HashMap<i32, i32> = HashMap::new();
-            let mut sizes: HashMap<i32, usize> = HashMap::new();
-            for entry in entries {
-                let hour = format_date(&entry.time, "%H").parse::<i32>().unwrap();
-                hours.insert(hour, *hours.get(&hour).unwrap_or(&0i32) + 1);
-                sizes.insert(
-                    hour,
-                    *sizes.get(&hour).unwrap_or(&0usize) + entry.size as usize,
-                );
-            }
-            let mut lines: Vec<String> = Vec::new();
-            for hour in 0..24 {
-                if !hours.contains_key(&hour) {
-                    hours.insert(hour, 0);
-                    sizes.insert(hour, 0);
-                }
-                let h: String;
-                if hour == 0 || hour == 12 {
-                    h = String::from("12");
-                } else if hour < 12 {
-                    h = hour.to_string();
-                } else {
-                    h = (hour - 12).to_string();
-                }
-                lines.push(format!(
-                    "<tr><td>{} {}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
-                    format!("{:\u{00A0}>2}", h),
-                    (hour < 12).then(|| "AM").unwrap_or("PM"),
-                    hours[&hour],
-                    format_percent(hours[&hour] as usize, entries.len()),
-                    human_readable_bytes(sizes[&hour]),
-                    format_percent(sizes[&hour], total_size)
-                ));
-            }
-            return lines.join("");
+    }
+    let template =
+        String::from(std::str::from_utf8(include_bytes!("templates/overall.html")).unwrap());
+    return template
+        .replace("{{visitors}}", &count.to_string())
+        .replace("{{visits}}", &entries.len().to_string())
+        .replace("{{bandwidth}}", &human_readable_bytes(total_size));
+}
+
+fn get_yearly_table(entries: &Vec<Entry>, total_size: usize) -> String {
+    let mut years: HashMap<i32, i32> = HashMap::new();
+    let mut sizes: HashMap<i32, usize> = HashMap::new();
+    let mut unique: HashMap<i32, HashSet<&str>> = HashMap::new();
+    for entry in entries {
+        let year = format_date(&entry.time, "%Y").parse::<i32>().unwrap();
+        years.insert(year, *years.get(&year).unwrap_or(&0i32) + 1);
+        sizes.insert(
+            year,
+            *sizes.get(&year).unwrap_or(&0usize) + entry.size as usize,
+        );
+        if !unique.contains_key(&year) {
+            unique.insert(year, HashSet::new());
         }
-        "ip-rows" => {
-            let mut unique: LinkedHashMap<String, i32> = LinkedHashMap::new();
-            let mut bw: HashMap<String, usize> = HashMap::new();
-            let mut dates: HashMap<String, Vec<DateTime<FixedOffset>>> = HashMap::new();
-            for entry in entries {
-                unique.insert(
-                    entry.ip.clone(),
-                    *unique.get(&entry.ip).unwrap_or(&0i32) + 1,
-                );
-                bw.insert(
-                    entry.ip.clone(),
-                    *bw.get(&entry.ip).unwrap_or(&0usize) + entry.size as usize,
-                );
-                if !dates.contains_key(&entry.ip) {
-                    let vec: Vec<DateTime<FixedOffset>> = Vec::new();
-                    dates.insert(entry.ip.clone(), vec);
-                }
-                dates.get_mut(&entry.ip).unwrap().push(entry.time);
-            }
-            unique = sort_map(unique);
-            let mut lines: Vec<String> = Vec::new();
-            for (ip, count) in unique {
-                dates
-                    .get_mut(&ip)
-                    .unwrap()
-                    .sort_by_key(|k| k.timestamp_millis());
-                lines.push(format!(
+        unique.get_mut(&year).unwrap().insert(&entry.ip);
+    }
+    let mut lines: Vec<String> = Vec::new();
+    for (year, count) in years {
+        lines.push(format!(
+            "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+            year,
+            unique[&year].len(),
+            count,
+            format_percent(count as usize, entries.len()),
+            human_readable_bytes(sizes[&year]),
+            format_percent(sizes[&year], total_size)
+        ));
+    }
+    return format_table_vvb_avg("Yearly", &lines.join(""), "%Y", entries);
+}
+
+fn get_monthly_table(entries: &Vec<Entry>, total_size: usize) -> String {
+    let month_names = vec![
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    let mut months: HashMap<i32, i32> = HashMap::new();
+    let mut sizes: HashMap<i32, usize> = HashMap::new();
+    let mut unique: HashMap<i32, HashSet<&str>> = HashMap::new();
+    for entry in entries {
+        let month = format_date(&entry.time, "%m").parse::<i32>().unwrap();
+        months.insert(month, *months.get(&month).unwrap_or(&0i32) + 1);
+        sizes.insert(
+            month,
+            *sizes.get(&month).unwrap_or(&0usize) + entry.size as usize,
+        );
+        if !unique.contains_key(&month) {
+            unique.insert(month, HashSet::new());
+        }
+        unique.get_mut(&month).unwrap().insert(&entry.ip);
+    }
+    let mut lines: Vec<String> = Vec::new();
+    for month in 1..13 {
+        if !months.contains_key(&month) {
+            months.insert(month, 0);
+            sizes.insert(month, 0);
+            unique.insert(month, HashSet::new());
+        }
+        lines.push(format!(
+            "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+            month_names[(month - 1) as usize],
+            unique[&month].len(),
+            months[&month],
+            format_percent(months[&month] as usize, entries.len()),
+            human_readable_bytes(sizes[&month]),
+            format_percent(sizes[&month], total_size)
+        ));
+    }
+    return format_table_vvb_avg("Monthly", &lines.join(""), "%m", entries);
+}
+
+fn get_day_of_month_table(entries: &Vec<Entry>, total_size: usize) -> String {
+    let mut days: HashMap<i32, i32> = HashMap::new();
+    let mut sizes: HashMap<i32, usize> = HashMap::new();
+    for entry in entries {
+        let day = format_date(&entry.time, "%d").parse::<i32>().unwrap();
+        days.insert(day, *days.get(&day).unwrap_or(&0i32) + 1);
+        sizes.insert(
+            day,
+            *sizes.get(&day).unwrap_or(&0usize) + entry.size as usize,
+        );
+    }
+    let mut lines: Vec<String> = Vec::new();
+    for day in 1..32 {
+        if !days.contains_key(&day) {
+            days.insert(day, 0);
+            sizes.insert(day, 0);
+        }
+        lines.push(format!(
+            "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+            day,
+            days[&day],
+            format_percent(days[&day] as usize, entries.len()),
+            human_readable_bytes(sizes[&day]),
+            format_percent(sizes[&day], total_size)
+        ));
+    }
+    return format_table_vb_avg("Day", &lines.join(""), "%Y", entries);
+}
+
+fn get_day_of_week_table(entries: &Vec<Entry>, total_size: usize) -> String {
+    let day_names = vec!["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    let mut days: HashMap<i32, i32> = HashMap::new();
+    let mut sizes: HashMap<i32, usize> = HashMap::new();
+    for entry in entries {
+        let day = format_date(&entry.time, "%w").parse::<i32>().unwrap();
+        days.insert(day, *days.get(&day).unwrap_or(&0i32) + 1);
+        sizes.insert(
+            day,
+            *sizes.get(&day).unwrap_or(&0usize) + entry.size as usize,
+        );
+    }
+    let mut lines: Vec<String> = Vec::new();
+    for day in 0..7 {
+        if !days.contains_key(&day) {
+            days.insert(day, 0);
+            sizes.insert(day, 0);
+        }
+        lines.push(format!(
+            "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+            day_names[day as usize],
+            days[&day],
+            format_percent(days[&day] as usize, entries.len()),
+            human_readable_bytes(sizes[&day]),
+            format_percent(sizes[&day], total_size)
+        ));
+    }
+    return format_table_vb("Day", &lines.join(""));
+}
+
+fn get_hourly_table(entries: &Vec<Entry>, total_size: usize) -> String {
+    let mut hours: HashMap<i32, i32> = HashMap::new();
+    let mut sizes: HashMap<i32, usize> = HashMap::new();
+    for entry in entries {
+        let hour = format_date(&entry.time, "%H").parse::<i32>().unwrap();
+        hours.insert(hour, *hours.get(&hour).unwrap_or(&0i32) + 1);
+        sizes.insert(
+            hour,
+            *sizes.get(&hour).unwrap_or(&0usize) + entry.size as usize,
+        );
+    }
+    let mut lines: Vec<String> = Vec::new();
+    for hour in 0..24 {
+        if !hours.contains_key(&hour) {
+            hours.insert(hour, 0);
+            sizes.insert(hour, 0);
+        }
+        let h: String;
+        if hour == 0 || hour == 12 {
+            h = String::from("12");
+        } else if hour < 12 {
+            h = hour.to_string();
+        } else {
+            h = (hour - 12).to_string();
+        }
+        lines.push(format!(
+            "<tr><td>{} {}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+            format!("{:\u{00A0}>2}", h),
+            (hour < 12).then(|| "AM").unwrap_or("PM"),
+            hours[&hour],
+            format_percent(hours[&hour] as usize, entries.len()),
+            human_readable_bytes(sizes[&hour]),
+            format_percent(sizes[&hour], total_size)
+        ));
+    }
+    return format_table_vb("Hour", &lines.join(""));
+}
+
+fn get_ip_table(entries: &Vec<Entry>, total_size: usize, config: &Yaml) -> String {
+    let mut unique: LinkedHashMap<String, i32> = LinkedHashMap::new();
+    let mut bw: HashMap<String, usize> = HashMap::new();
+    let mut dates: HashMap<String, Vec<DateTime<FixedOffset>>> = HashMap::new();
+    for entry in entries {
+        unique.insert(
+            entry.ip.clone(),
+            *unique.get(&entry.ip).unwrap_or(&0i32) + 1,
+        );
+        bw.insert(
+            entry.ip.clone(),
+            *bw.get(&entry.ip).unwrap_or(&0usize) + entry.size as usize,
+        );
+        if !dates.contains_key(&entry.ip) {
+            let vec: Vec<DateTime<FixedOffset>> = Vec::new();
+            dates.insert(entry.ip.clone(), vec);
+        }
+        dates.get_mut(&entry.ip).unwrap().push(entry.time);
+    }
+    unique = sort_map(unique);
+    let mut lines: Vec<String> = Vec::new();
+    for (ip, count) in unique {
+        dates
+            .get_mut(&ip)
+            .unwrap()
+            .sort_by_key(|k| k.timestamp_millis());
+        lines.push(format!(
 					"<tr><td>{}</td><td><a href=\"{}\">View</a></td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
 					ip,
 					config["whois-tool"]
@@ -585,444 +656,492 @@ fn get_output(key: &str, entries: &Vec<Entry>, log_keys: &Vec<String>, config: &
 					format_percent(bw[&ip], total_size),
 					format_date_config(&dates[&ip][dates[&ip].len() - 1], &config)
 				));
-            }
-            return lines.join("");
+    }
+    let template =
+        String::from(std::str::from_utf8(include_bytes!("templates/ip-table.html")).unwrap());
+    return template.replace("{{rows}}", &lines.join(""));
+}
+
+fn get_users_table(entries: &Vec<Entry>, total_size: usize, config: &Yaml) -> String {
+    let mut unique: LinkedHashMap<String, i32> = LinkedHashMap::new();
+    let mut bw: HashMap<String, usize> = HashMap::new();
+    let mut dates: HashMap<String, Vec<DateTime<FixedOffset>>> = HashMap::new();
+    for entry in entries {
+        unique.insert(
+            entry.user.clone(),
+            *unique.get(&entry.user).unwrap_or(&0i32) + 1,
+        );
+        bw.insert(
+            entry.user.clone(),
+            *bw.get(&entry.user).unwrap_or(&0usize) + entry.size as usize,
+        );
+        if !dates.contains_key(&entry.user) {
+            let vec: Vec<DateTime<FixedOffset>> = Vec::new();
+            dates.insert(entry.user.clone(), vec);
         }
-        "users-rows" => {
-            let mut unique: LinkedHashMap<String, i32> = LinkedHashMap::new();
-            let mut bw: HashMap<String, usize> = HashMap::new();
-            let mut dates: HashMap<String, Vec<DateTime<FixedOffset>>> = HashMap::new();
-            for entry in entries {
-                unique.insert(
-                    entry.user.clone(),
-                    *unique.get(&entry.user).unwrap_or(&0i32) + 1,
-                );
-                bw.insert(
-                    entry.user.clone(),
-                    *bw.get(&entry.user).unwrap_or(&0usize) + entry.size as usize,
-                );
-                if !dates.contains_key(&entry.user) {
-                    let vec: Vec<DateTime<FixedOffset>> = Vec::new();
-                    dates.insert(entry.user.clone(), vec);
-                }
-                dates.get_mut(&entry.user).unwrap().push(entry.time);
-            }
-            unique = sort_map(unique);
-            let mut lines: Vec<String> = Vec::new();
-            for (user, count) in unique {
-                dates
-                    .get_mut(&user)
-                    .unwrap()
-                    .sort_by_key(|k| k.timestamp_millis());
-                lines.push(format!(
-                    "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
-                    get_or_else(&user, "unauthenticated"),
-                    count,
-                    format_percent(count as usize, entries.len()),
-                    human_readable_bytes(bw[&user]),
-                    format_percent(bw[&user], total_size),
-                    format_date_config(&dates[&user][dates[&user].len() - 1], &config)
-                ));
-            }
-            return lines.join("");
+        dates.get_mut(&entry.user).unwrap().push(entry.time);
+    }
+    unique = sort_map(unique);
+    let mut lines: Vec<String> = Vec::new();
+    for (user, count) in unique {
+        dates
+            .get_mut(&user)
+            .unwrap()
+            .sort_by_key(|k| k.timestamp_millis());
+        lines.push(format!(
+            "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
+            get_or_else(&user, "unauthenticated"),
+            count,
+            format_percent(count as usize, entries.len()),
+            human_readable_bytes(bw[&user]),
+            format_percent(bw[&user], total_size),
+            format_date_config(&dates[&user][dates[&user].len() - 1], &config)
+        ));
+    }
+    let template =
+        String::from(std::str::from_utf8(include_bytes!("templates/users-table.html")).unwrap());
+    return template.replace("{{rows}}", &lines.join(""));
+}
+
+fn get_user_agent_table(entries: &Vec<Entry>, total_size: usize, config: &Yaml) -> String {
+    let mut unique_agents: LinkedHashMap<String, i32> = LinkedHashMap::new();
+    let mut unique_visitors: HashMap<String, HashSet<&str>> = HashMap::new();
+    let mut bw: HashMap<String, usize> = HashMap::new();
+    let mut dates: HashMap<String, Vec<DateTime<FixedOffset>>> = HashMap::new();
+    for entry in entries {
+        unique_agents.insert(
+            entry.agent.clone(),
+            *unique_agents.get(&entry.agent).unwrap_or(&0i32) + 1,
+        );
+        if !unique_visitors.contains_key(&entry.agent) {
+            unique_visitors.insert(entry.agent.clone(), HashSet::new());
         }
-        "agents-rows" => {
-            let mut unique_agents: LinkedHashMap<String, i32> = LinkedHashMap::new();
-            let mut unique_visitors: HashMap<String, HashSet<&str>> = HashMap::new();
-            let mut bw: HashMap<String, usize> = HashMap::new();
-            let mut dates: HashMap<String, Vec<DateTime<FixedOffset>>> = HashMap::new();
-            for entry in entries {
-                unique_agents.insert(
-                    entry.agent.clone(),
-                    *unique_agents.get(&entry.agent).unwrap_or(&0i32) + 1,
-                );
-                if !unique_visitors.contains_key(&entry.agent) {
-                    unique_visitors.insert(entry.agent.clone(), HashSet::new());
-                }
-                unique_visitors
-                    .get_mut(&entry.agent)
-                    .unwrap()
-                    .insert(&entry.ip);
-                bw.insert(
-                    entry.agent.clone(),
-                    *bw.get(&entry.agent).unwrap_or(&0usize) + entry.size as usize,
-                );
-                if !dates.contains_key(&entry.agent) {
-                    let vec: Vec<DateTime<FixedOffset>> = Vec::new();
-                    dates.insert(entry.agent.clone(), vec);
-                }
-                dates.get_mut(&entry.agent).unwrap().push(entry.time);
-            }
-            unique_agents = sort_map(unique_agents);
-            let mut lines: Vec<String> = Vec::new();
-            for (agent, count) in unique_agents {
-                dates
-                    .get_mut(&agent)
-                    .unwrap()
-                    .sort_by_key(|k| k.timestamp_millis());
-                lines.push(format!(
-						"<tr><td class=\"ss-user-agent\">{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
-						truncate_string(&agent, "user-agent", config),
-						unique_visitors.len(),
-						count,
-						format_percent(count as usize, entries.len()),
-						human_readable_bytes(bw[&agent]),
-						format_percent(bw[&agent], total_size),
-						format_date_config(&dates[&agent][dates[&agent].len() - 1], config))
-					);
-            }
-            return lines.join("");
+        unique_visitors
+            .get_mut(&entry.agent)
+            .unwrap()
+            .insert(&entry.ip);
+        bw.insert(
+            entry.agent.clone(),
+            *bw.get(&entry.agent).unwrap_or(&0usize) + entry.size as usize,
+        );
+        if !dates.contains_key(&entry.agent) {
+            let vec: Vec<DateTime<FixedOffset>> = Vec::new();
+            dates.insert(entry.agent.clone(), vec);
         }
-        "pages-rows" => {
-            let mut lines: Vec<String> = Vec::new();
-            let mut unique: LinkedHashMap<String, (i32, &str)> = LinkedHashMap::new();
-            let mut bw: HashMap<String, usize> = HashMap::new();
-            for entry in entries {
-                let server = &entry.canonical_server_name;
-                if unique.contains_key(&entry.request) {
-                    unique.insert(
-                        entry.request.clone(),
-                        (unique.get(&entry.request).unwrap().0, server),
-                    );
-                } else {
-                    unique.insert(entry.request.clone(), (1, server));
-                }
-                bw.insert(
-                    entry.request.clone(),
-                    *bw.get(&entry.request).unwrap_or(&0usize) + entry.size as usize,
-                );
-            }
-            unique = sort_map_tuple(unique);
-            for (request, count) in unique {
-                let split: Vec<&str> = request.split(" ").collect();
-                lines.push(format!(
-                        "<tr><td>{}</td><td>{}</td><td class=\"ss-page-url\">{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
-                        count.1,
-                        truncate_string(get_or_none(&split[0]).substring(0, 10), "request-method", config),
-                        (split.len() > 1).then(|| truncate_string(split[1], "request-url", config)).unwrap_or(String::from("(none)")),
-                        (split.len() > 2).then(|| split[2]).unwrap_or("(none)"),
-                        count.0,
-                        format_percent(count.0 as usize, entries.len()),
-                        human_readable_bytes(bw[&request]),
-                        format_percent(bw[&request], total_size),
-                        human_readable_bytes((bw[&request] / entries.len()) as usize)
-                    ));
-            }
-            return lines.join("");
+        dates.get_mut(&entry.agent).unwrap().push(entry.time);
+    }
+    unique_agents = sort_map(unique_agents);
+    let mut lines: Vec<String> = Vec::new();
+    for (agent, count) in unique_agents {
+        dates
+            .get_mut(&agent)
+            .unwrap()
+            .sort_by_key(|k| k.timestamp_millis());
+        lines.push(format!(
+                "<tr><td class=\"ss-user-agent\">{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
+                truncate_string(&agent, "user-agent", config),
+                unique_visitors.len(),
+                count,
+                format_percent(count as usize, entries.len()),
+                human_readable_bytes(bw[&agent]),
+                format_percent(bw[&agent], total_size),
+                format_date_config(&dates[&agent][dates[&agent].len() - 1], config))
+            );
+    }
+    let template = String::from(
+        std::str::from_utf8(include_bytes!("templates/user-agent-table.html")).unwrap(),
+    );
+    return template.replace("{{rows}}", &lines.join(""));
+}
+
+fn get_pages_table(entries: &Vec<Entry>, total_size: usize, config: &Yaml) -> String {
+    let mut lines: Vec<String> = Vec::new();
+    let mut unique: LinkedHashMap<String, (i32, &str)> = LinkedHashMap::new();
+    let mut bw: HashMap<String, usize> = HashMap::new();
+    for entry in entries {
+        let server = &entry.canonical_server_name;
+        if unique.contains_key(&entry.request) {
+            unique.insert(
+                entry.request.clone(),
+                (unique.get(&entry.request).unwrap().0 + 1, server),
+            );
+        } else {
+            unique.insert(entry.request.clone(), (1, server));
         }
-        "referers-rows" => {
-            let mut unique: LinkedHashMap<String, i32> = LinkedHashMap::new();
-            let mut bw: HashMap<String, usize> = HashMap::new();
-            for entry in entries {
-                unique.insert(
-                    entry.referer.clone(),
-                    *unique.get(&entry.referer).unwrap_or(&0i32) + 1,
-                );
-                bw.insert(
-                    entry.referer.clone(),
-                    *bw.get(&entry.referer).unwrap_or(&0usize) + entry.size as usize,
-                );
-            }
-            unique = sort_map(unique);
-            let mut lines: Vec<String> = Vec::new();
-            for (referer, count) in unique {
-                lines.push(format!(
-					"<tr><td class=\"ss-referer\">{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
-					truncate_string(&referer, "referer", config),
-					count,
-					format_percent(count as usize, entries.len()),
-					human_readable_bytes(bw[&referer]),
-					format_percent(bw[&referer], total_size)
-				));
-            }
-            return lines.join("");
+        bw.insert(
+            entry.request.clone(),
+            *bw.get(&entry.request).unwrap_or(&0usize) + entry.size as usize,
+        );
+    }
+    unique = sort_map_tuple(unique);
+    for (request, count) in unique {
+        let split: Vec<&str> = request.split(" ").collect();
+        lines.push(format!(
+                "<tr><td>{}</td><td>{}</td><td class=\"ss-page-url\">{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
+                count.1,
+                truncate_string(get_or_none(&split[0]).substring(0, 10), "request-method", config),
+                (split.len() > 1).then(|| truncate_string(split[1], "request-url", config)).unwrap_or(String::from("(none)")),
+                (split.len() > 2).then(|| split[2]).unwrap_or("(none)"),
+                count.0,
+                format_percent(count.0 as usize, entries.len()),
+                human_readable_bytes(bw[&request]),
+                format_percent(bw[&request], total_size),
+                human_readable_bytes((bw[&request] / entries.len()) as usize)
+            ));
+    }
+    let template =
+        String::from(std::str::from_utf8(include_bytes!("templates/pages-table.html")).unwrap());
+    return template.replace("{{rows}}", &lines.join(""));
+}
+
+fn get_referers_table(entries: &Vec<Entry>, total_size: usize, config: &Yaml) -> String {
+    let mut unique: LinkedHashMap<String, i32> = LinkedHashMap::new();
+    let mut bw: HashMap<String, usize> = HashMap::new();
+    for entry in entries {
+        unique.insert(
+            entry.referer.clone(),
+            *unique.get(&entry.referer).unwrap_or(&0i32) + 1,
+        );
+        bw.insert(
+            entry.referer.clone(),
+            *bw.get(&entry.referer).unwrap_or(&0usize) + entry.size as usize,
+        );
+    }
+    unique = sort_map(unique);
+    let mut lines: Vec<String> = Vec::new();
+    for (referer, count) in unique {
+        lines.push(format!(
+            "<tr><td class=\"ss-referer\">{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
+            truncate_string(&referer, "referer", config),
+            count,
+            format_percent(count as usize, entries.len()),
+            human_readable_bytes(bw[&referer]),
+            format_percent(bw[&referer], total_size)
+        ));
+    }
+    let template =
+        String::from(std::str::from_utf8(include_bytes!("templates/referers-table.html")).unwrap());
+    return template.replace("{{rows}}", &lines.join(""));
+}
+
+fn get_responses_table(entries: &Vec<Entry>, total_size: usize) -> String {
+    let mut unique: LinkedHashMap<String, i32> = LinkedHashMap::new();
+    let mut bw: HashMap<String, usize> = HashMap::new();
+    for entry in entries {
+        unique.insert(
+            entry.response.clone(),
+            *unique.get(&entry.response).unwrap_or(&0i32) + 1,
+        );
+        bw.insert(
+            entry.response.clone(),
+            *bw.get(&entry.response).unwrap_or(&0usize) + entry.size as usize,
+        );
+    }
+    unique = sort_map(unique);
+    let mut lines: Vec<String> = Vec::new();
+    for (response, count) in unique {
+        lines.push(format!(
+            "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
+            response,
+            count,
+            format_percent(count as usize, entries.len()),
+            human_readable_bytes(bw[&response]),
+            format_percent(bw[&response], total_size)
+        ));
+    }
+    let template = String::from(
+        std::str::from_utf8(include_bytes!("templates/responses-table.html")).unwrap(),
+    );
+    return template.replace("{{rows}}", &lines.join(""));
+}
+
+fn get_full_log(entries: &Vec<Entry>, log_keys: &Vec<&str>, config: &Yaml) -> String {
+    let mut lines: Vec<String> = Vec::new();
+    for key in log_keys {
+        lines.push(format!("<td>{}</td>", get_key_name(&key)));
+    }
+    lines.push(String::from("</tr>\n"));
+    for entry in entries {
+        lines.push(format!(
+            "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td>
+        <td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td>
+        <td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}
+        </td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
+            &entry.canonical_server_name,
+            &entry.port,
+            &entry.ip,
+            &entry.remote_logname,
+            &entry.user,
+            format_date_config(&entry.time, config),
+            &entry.request,
+            &entry.response,
+            human_readable_bytes(entry.size as usize),
+            &entry.referer,
+            &entry.agent,
+            &entry.client_ip,
+            &entry.local_ip,
+            human_readable_bytes(entry.size_excl_headers as usize),
+            human_readable_bytes(entry.size_incl_headers as usize),
+            &entry.time_to_serve_us,
+            &entry.filename,
+            &entry.request_protocol,
+            &entry.keepalive_requests,
+            if entry.error_log_id == -1 {
+                String::from("(none)")
+            } else {
+                entry.error_log_id.to_string()
+            },
+            &entry.request_method,
+            &entry.child_pid,
+            &entry.url_excl_query,
+            &entry.query,
+            &entry.handler,
+            &entry.time_to_serve_s,
+            &entry.server_name,
+            get_connection_status(entry.connection_status),
+            human_readable_bytes(entry.bytes_received as usize),
+            human_readable_bytes(entry.bytes_transferred as usize)
+        ));
+    }
+    return format!("<table><tr>{}</table>", lines.join(""));
+}
+
+fn get_footer() -> String {
+    return String::from(format!(
+        "<span class=\"ss-footer\"><a href=\"{}\">SimpleStats</a> {} by <a href=\"{}\">{}</a></span>",
+        env!("CARGO_PKG_REPOSITORY"),
+        env!("CARGO_PKG_VERSION"),
+        env!("CARGO_PKG_HOMEPAGE"),
+        env!("CARGO_PKG_AUTHORS")
+    ));
+}
+
+fn format_table_vvb_avg(header: &str, rows: &str, date_key: &str, entries: &Vec<Entry>) -> String {
+    let template =
+        String::from(std::str::from_utf8(include_bytes!("templates/table-vvb-avg.html")).unwrap());
+    return template
+        .replace("{{key}}", header)
+        .replace("{{rows}}", rows)
+        .replace("{{avg-visitors}}", &get_average_visitors(entries, date_key))
+        .replace("{{avg-visits}}", &get_average_visits(entries, date_key))
+        .replace(
+            "{{avg-bandwidth}}",
+            &get_average_bandwidth(entries, date_key),
+        );
+}
+
+fn format_table_vb_avg(header: &str, rows: &str, date_key: &str, entries: &Vec<Entry>) -> String {
+    let template =
+        String::from(std::str::from_utf8(include_bytes!("templates/table-vb-avg.html")).unwrap());
+    return template
+        .replace("{{key}}", header)
+        .replace("{{rows}}", rows)
+        .replace("{{avg-visits}}", &get_average_visits(entries, date_key))
+        .replace(
+            "{{avg-bandwidth}}",
+            &get_average_bandwidth(entries, date_key),
+        );
+}
+
+fn format_table_vb(header: &str, rows: &str) -> String {
+    let template =
+        String::from(std::str::from_utf8(include_bytes!("templates/table-vb.html")).unwrap());
+    return template
+        .replace("{{key}}", header)
+        .replace("{{rows}}", rows);
+}
+
+fn get_key_name(key: &str) -> &str {
+    match key {
+        "%a" => return "Client IP",
+        "%A" => return "Local IP",
+        "%B" => return "Response Size Excluding Headers",
+        "%b" => return "Response Size Including Hedaers",
+        "%D" => return "Time Taken (Microseconds)",
+        "%f" => return "Request Filename",
+        "%h" => return "Remote Hostname",
+        "%H" => return "Request Protocol",
+        "%{Referer}i" => return "Referer",
+        "%{User-Agent}i" => return "User Agent",
+        "%k" => return "Keepalive Requests",
+        "%l" => return "Remote Logname",
+        "%L" => return "Request Error Log ID",
+        "%m" => return "Request Method",
+        "%p" => return "Port",
+        "%P" => return "Child PID",
+        "%q" => return "Query",
+        "%r" => return "Request",
+        "%R" => return "Handler",
+        "%s" => return "Request Status",
+        "%>s" => return "Final Request Status",
+        "%t" => return "Time",
+        "%T" => return "Time Taken (Seconds)",
+        "%u" => return "User",
+        "%U" => return "URL Excluding Query",
+        "%v" => return "Canonical Server Name",
+        "%V" => return "Server Name",
+        "%X" => return "Connection Status",
+        "%I" => return "Bytes Received",
+        "%O" => return "Bytes Sent",
+        "%S" => return "Bytes Transferred",
+        _ => {
+            return "?";
         }
-        "responses-rows" => {
-            let mut unique: LinkedHashMap<String, i32> = LinkedHashMap::new();
-            let mut bw: HashMap<String, usize> = HashMap::new();
-            for entry in entries {
-                unique.insert(
-                    entry.response.clone(),
-                    *unique.get(&entry.response).unwrap_or(&0i32) + 1,
-                );
-                bw.insert(
-                    entry.response.clone(),
-                    *bw.get(&entry.response).unwrap_or(&0usize) + entry.size as usize,
-                );
-            }
-            unique = sort_map(unique);
-            let mut lines: Vec<String> = Vec::new();
-            for (response, count) in unique {
-                lines.push(format!(
-                    "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
-                    response,
-                    count,
-                    format_percent(count as usize, entries.len()),
-                    human_readable_bytes(bw[&response]),
-                    format_percent(bw[&response], total_size)
-                ));
-            }
-            return lines.join("");
+    }
+}
+
+fn human_readable_bytes(bytes: usize) -> String {
+    let mut b = bytes as f64;
+    let mut magnitude: usize = 0;
+    while b > 1000f64 {
+        b /= 1000f64;
+        magnitude += 1;
+    }
+    if magnitude == 0 {
+        return String::from(format!("{:0} B", b));
+    } else {
+        return String::from(format!(
+            "{:.2} {}B",
+            b,
+            ['k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y'][magnitude - 1]
+        ));
+    }
+}
+
+fn format_percent(part: usize, whole: usize) -> String {
+    return format!("{:.2}%", ((part as f64) / (whole as f64)) * 100f64);
+}
+
+fn sort_map(map: LinkedHashMap<String, i32>) -> LinkedHashMap<String, i32> {
+    let mut v: Vec<(&String, &i32)> = map.iter().collect();
+    v.sort_by(|a, b| b.1.cmp(a.1));
+    let mut m: LinkedHashMap<String, i32> = LinkedHashMap::new();
+    for entry in v {
+        m.insert(entry.0.to_string(), *entry.1);
+    }
+    return m;
+}
+
+fn sort_map_tuple(map: LinkedHashMap<String, (i32, &str)>) -> LinkedHashMap<String, (i32, &str)> {
+    let mut v: Vec<(&String, &(i32, &str))> = map.iter().collect();
+    v.sort_by(|a, b| b.1 .0.cmp(&a.1 .0));
+    let mut m: LinkedHashMap<String, (i32, &str)> = LinkedHashMap::new();
+    for entry in v {
+        m.insert(entry.0.to_string(), *entry.1);
+    }
+    return m;
+}
+
+fn get_or_none(key: &str) -> &str {
+    match key {
+        "-" => return "(none)",
+        _ => return key,
+    }
+}
+
+fn get_or_else(key: &str, other: &str) -> String {
+    match key {
+        "-" => return format!("({})", other),
+        _ => return String::from(key),
+    }
+}
+
+fn get_average_visitors(entries: &Vec<Entry>, date_format: &str) -> String {
+    let mut unique: HashSet<&str> = HashSet::new();
+    let mut keys: HashSet<i32> = HashSet::new();
+    for entry in entries {
+        let key = format_date(&entry.time, date_format)
+            .parse::<i32>()
+            .unwrap();
+        keys.insert(key);
+        unique.insert(&entry.ip);
+    }
+    return (unique.len() / keys.len()).to_string();
+}
+
+fn get_average_visits(entries: &Vec<Entry>, date_format: &str) -> String {
+    let mut keys: HashSet<i32> = HashSet::new();
+    for entry in entries {
+        let key = format_date(&entry.time, date_format)
+            .parse::<i32>()
+            .unwrap();
+        keys.insert(key);
+    }
+    return (entries.len() / keys.len()).to_string();
+}
+
+fn get_average_bandwidth(entries: &Vec<Entry>, date_format: &str) -> String {
+    let mut keys: HashMap<i32, usize> = HashMap::new();
+    for entry in entries {
+        let key = format_date(&entry.time, date_format)
+            .parse::<i32>()
+            .unwrap();
+        keys.insert(
+            key,
+            *keys.get(&key).unwrap_or(&0usize) + entry.size as usize,
+        );
+    }
+    let mut sum: usize = 0;
+    for (_key, size) in &keys {
+        sum += size;
+    }
+    return human_readable_bytes((sum / keys.len()) as usize);
+}
+
+fn format_date(date: &DateTime<FixedOffset>, format: &str) -> String {
+    return Local
+        .from_local_datetime(&date.naive_local())
+        .unwrap()
+        .format(&format)
+        .to_string();
+}
+
+fn format_date_config(date: &DateTime<FixedOffset>, config: &Yaml) -> String {
+    return format_date(date, config["output-date-format"].as_str().unwrap());
+}
+
+fn get_connection_status(status: char) -> String {
+    match status {
+        'X' => {
+            return String::from("Aborted");
         }
-        "full-log-rows" => {
-            let mut lines: Vec<String> = Vec::new();
-            lines.push(String::from("<tr>"));
-            for key in log_keys {
-                lines.push(format!("<td>{}</td>", get_key_name(&key)));
-            }
-            lines.push(String::from("</tr>\n"));
-            for entry in entries {
-                lines.push(format!(
-					"<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td>
-				<td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td>
-				<td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}
-				</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
-					&entry.canonical_server_name,
-					&entry.port,
-					&entry.ip,
-					&entry.remote_logname,
-					&entry.user,
-					format_date_config(&entry.time, config),
-					&entry.request,
-					&entry.response,
-					human_readable_bytes(entry.size as usize),
-					&entry.referer,
-					&entry.agent,
-					&entry.client_ip,
-					&entry.local_ip,
-					human_readable_bytes(entry.size_excl_headers as usize),
-					human_readable_bytes(entry.size_incl_headers as usize),
-					&entry.time_to_serve_us,
-					&entry.filename,
-					&entry.request_protocol,
-					&entry.keepalive_requests,
-					if entry.error_log_id == -1 {
-						String::from("(none)")
-					} else {
-						entry.error_log_id.to_string()
-					},
-					&entry.request_method,
-					&entry.child_pid,
-					&entry.url_excl_query,
-					&entry.query,
-					&entry.handler,
-					&entry.time_to_serve_s,
-					&entry.server_name,
-					get_connection_status(entry.connection_status),
-					human_readable_bytes(entry.bytes_received as usize),
-					human_readable_bytes(entry.bytes_transferred as usize)
-				));
-            }
-            return lines.join("");
+        '+' => {
+            return String::from("Alive");
         }
-        "footer" => {
-            return String::from(format!(
-				"<span class=\"ss-footer\"><a href=\"{}\">SimpleStats</a> {} by <a href=\"{}\">{}</a></span>",
-				env!("CARGO_PKG_REPOSITORY"),
-				env!("CARGO_PKG_VERSION"),
-				env!("CARGO_PKG_HOMEPAGE"),
-				env!("CARGO_PKG_AUTHORS")
-			));
+        '-' => {
+            return String::from("Closed");
         }
         _ => {
-            return String::from("(INVALID KEY)");
+            return String::from("?");
         }
     }
+}
 
-    fn get_key_name(key: &str) -> &str {
-        match key {
-            "%a" => return "Client IP",
-            "%A" => return "Local IP",
-            "%B" => return "Response Size Excluding Headers",
-            "%b" => return "Response Size Including Hedaers",
-            "%D" => return "Time Taken (Microseconds)",
-            "%f" => return "Request Filename",
-            "%h" => return "Remote Hostname",
-            "%H" => return "Request Protocol",
-            "%{Referer}i" => return "Referer",
-            "%{User-Agent}i" => return "User Agent",
-            "%k" => return "Keepalive Requests",
-            "%l" => return "Remote Logname",
-            "%L" => return "Request Error Log ID",
-            "%m" => return "Request Method",
-            "%p" => return "Port",
-            "%P" => return "Child PID",
-            "%q" => return "Query",
-            "%r" => return "Request",
-            "%R" => return "Handler",
-            "%s" => return "Request Status",
-            "%>s" => return "Final Request Status",
-            "%t" => return "Time",
-            "%T" => return "Time Taken (Seconds)",
-            "%u" => return "User",
-            "%U" => return "URL Excluding Query",
-            "%v" => return "Canonical Server Name",
-            "%V" => return "Server Name",
-            "%X" => return "Connection Status",
-            "%I" => return "Bytes Received",
-            "%O" => return "Bytes Sent",
-            "%S" => return "Bytes Transferred",
-            _ => {
-                return "?";
-            }
-        }
-    }
-
-    fn human_readable_bytes(bytes: usize) -> String {
-        let mut b = bytes as f64;
-        let mut magnitude: usize = 0;
-        while b > 1000f64 {
-            b /= 1000f64;
-            magnitude += 1;
-        }
-        if magnitude == 0 {
-            return String::from(format!("{:0} B", b));
-        } else {
-            return String::from(format!(
-                "{:.2} {}B",
-                b,
-                ['k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y'][magnitude - 1]
-            ));
-        }
-    }
-
-    fn format_percent(part: usize, whole: usize) -> String {
-        return format!("{:.2}%", ((part as f64) / (whole as f64)) * 100f64);
-    }
-
-    fn sort_map(map: LinkedHashMap<String, i32>) -> LinkedHashMap<String, i32> {
-        let mut v: Vec<(&String, &i32)> = map.iter().collect();
-        v.sort_by(|a, b| b.1.cmp(a.1));
-        let mut m: LinkedHashMap<String, i32> = LinkedHashMap::new();
-        for entry in v {
-            m.insert(entry.0.to_string(), *entry.1);
-        }
-        return m;
-    }
-
-    fn sort_map_tuple(
-        map: LinkedHashMap<String, (i32, &str)>,
-    ) -> LinkedHashMap<String, (i32, &str)> {
-        let mut v: Vec<(&String, &(i32, &str))> = map.iter().collect();
-        v.sort_by(|a, b| b.1 .0.cmp(&a.1 .0));
-        let mut m: LinkedHashMap<String, (i32, &str)> = LinkedHashMap::new();
-        for entry in v {
-            m.insert(entry.0.to_string(), *entry.1);
-        }
-        return m;
-    }
-
-    fn get_or_none(key: &str) -> &str {
-        match key {
-            "-" => return "(none)",
-            _ => return key,
-        }
-    }
-
-    fn get_or_else(key: &str, other: &str) -> String {
-        match key {
-            "-" => return format!("({})", other),
-            _ => return String::from(key),
-        }
-    }
-
-    fn get_average_visitors(entries: &Vec<Entry>, date_format: &str) -> String {
-        let mut unique: HashSet<&str> = HashSet::new();
-        let mut keys: HashSet<i32> = HashSet::new();
-        for entry in entries {
-            let key = format_date(&entry.time, date_format)
-                .parse::<i32>()
-                .unwrap();
-            keys.insert(key);
-            unique.insert(&entry.ip);
-        }
-        return (unique.len() / keys.len()).to_string();
-    }
-
-    fn get_average_visits(entries: &Vec<Entry>, date_format: &str) -> String {
-        let mut keys: HashSet<i32> = HashSet::new();
-        for entry in entries {
-            let key = format_date(&entry.time, date_format)
-                .parse::<i32>()
-                .unwrap();
-            keys.insert(key);
-        }
-        return (entries.len() / keys.len()).to_string();
-    }
-
-    fn get_average_bandwidth(entries: &Vec<Entry>, date_format: &str) -> String {
-        let mut keys: HashMap<i32, usize> = HashMap::new();
-        for entry in entries {
-            let key = format_date(&entry.time, date_format)
-                .parse::<i32>()
-                .unwrap();
-            keys.insert(
-                key,
-                *keys.get(&key).unwrap_or(&0usize) + entry.size as usize,
-            );
-        }
-        let mut sum: usize = 0;
-        for (_key, size) in &keys {
-            sum += size;
-        }
-        return human_readable_bytes((sum / keys.len()) as usize);
-    }
-
-    fn format_date(date: &DateTime<FixedOffset>, format: &str) -> String {
-        return Local
-            .from_local_datetime(&date.naive_local())
+fn truncate_string(s: &str, key: &str, config: &Yaml) -> String {
+    let truncate = config["truncate"][key].as_i64().unwrap() as usize;
+    if truncate != 0usize && s.len() > truncate {
+        let truncated = &get_or_none(&s)[..truncate];
+        match config["show-full-string"][key]
+            .as_str()
             .unwrap()
-            .format(&format)
-            .to_string();
-    }
-
-    fn format_date_config(date: &DateTime<FixedOffset>, config: &Yaml) -> String {
-        return format_date(date, config["output-date-format"].as_str().unwrap());
-    }
-
-    fn get_connection_status(status: char) -> String {
-        match status {
-            'X' => {
-                return String::from("Aborted");
+            .to_lowercase()
+            .as_str()
+        {
+            "hover" => {
+                return format!("<abbr title=\"{}\">{}...</abbr>", s, truncated);
             }
-            '+' => {
-                return String::from("Alive");
-            }
-            '-' => {
-                return String::from("Closed");
+            "click" => {
+                return format!(
+                    "<abbr onclick='javascript:prompt(\"Full string:\", \"{}\");'
+                        title=\"Click to display full string\">{}...</abbr>",
+                    s, truncated
+                );
             }
             _ => {
-                return String::from("?");
+                return format!("{}...", truncated);
             }
         }
-    }
-
-    fn truncate_string(s: &str, key: &str, config: &Yaml) -> String {
-        let truncate = config["truncate"][key].as_i64().unwrap() as usize;
-        if truncate != 0usize && s.len() > truncate {
-            let truncated = &get_or_none(&s)[..truncate];
-            match config["show-full-string"][key]
-                .as_str()
-                .unwrap()
-                .to_lowercase()
-                .as_str()
-            {
-                "hover" => {
-                    return format!("<abbr title=\"{}\">{}...</abbr>", s, truncated);
-                }
-                "click" => {
-                    return format!(
-                        "<abbr onclick='javascript:prompt(\"Full string:\", \"{}\");'
-							title=\"Click to display full string\">{}...</abbr>",
-                        s, truncated
-                    );
-                }
-                _ => {
-                    return format!("{}...", truncated);
-                }
-            }
-        } else {
-            return get_or_none(s).to_string();
-        }
+    } else {
+        return get_or_none(s).to_string();
     }
 }

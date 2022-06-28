@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Apache Statistics ({{generated-date}})</title>
+    <style>
+body {
+  font-family: sans-serif;
+  background-color: #FAFAFA;
+  margin: 1rem 2rem;
+}
+
+th {
+  font-weight: normal;
+  background-color: rgba(34, 34, 34, 0.15);
+}
+
+th, td {
+  text-align: center;
+  margin: 2px;
+  padding: 0.05em 0.5em;
+  font-family: monospace;
+}
+
+th.visitors {
+  background-color: #EF9A9A;
+}
+
+th.visits {
+  background-color: #A5D6A7;
+}
+
+th.bandwidth {
+  background-color: #90CAF9;
+}
+
+tr:nth-child(odd) td {
+  background-color: rgba(34, 34, 34, 0.07);
+}
+
+td.ss-user-agent, td.ss-page-url, td.ss-referer {
+  text-align: left;
+}
+
+.ss-footer {
+  font-size: smaller;
+  font-family: monospace;
+}
+    </style>
+  </head>
+  <body>
+    <h1>Apache Statistics ({{generated-date}})</h1>
+    <h2>Summary</h2>
+{{overall}}
+    <br>
+{{header}}
+    <h3>Yearly</h3>
+{{yearly-table}}
+    <h3>Monthly</h3>
+{{monthly-table}}
+    <h3>Days of month</h3>
+{{day-of-month-table}}
+    <h3>Days of week</h3>
+{{day-of-week-table}}
+    <h3>Hourly</h3>
+{{hourly-table}}
+    <br>
+    <h2>Visitors</h2>
+    <h3>IP Addresses</h3>
+{{ip-table}}
+    <h3>Authenticated Users</h3>
+{{users-table}}
+    <h3>User Agents</h3>
+{{user-agent-table}}
+    <br>
+    <h2>Requests</h2>
+    <h3>Pages</h3>
+{{pages-table}}
+    <h3>Referers</h3>
+{{referers-table}}
+    <h3>Responses</h3>
+{{responses-table}}
+    <br>
+    <p>{{footer}}</p>
+  </body>
+</html>

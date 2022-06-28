@@ -16,7 +16,6 @@ The program's configuration file can be found at `~/.config/simplestats/simplest
 |`output-date-format`|The format to use for dates in the output file.|`"%e %b %Y %I:%M:%S %p"`|
 |`whois-tool`|The URL of your preferred WHOIS tool. `<address>` will be replaced with the IP address.|`"https://iplocation.io/ip/<address>"`|
 |`ignore-internal`|If true, internal requests from a loopback address (i.e. `127.0.0.1` or `::1`) will be ignored.|`true`|
-|`output-sections`|(to be removed)|`true` for each|
 |`truncate`|Truncate long strings after this many characters. Set to 0 to disable truncation.|`user-agent`: `100`<br>`request-url`: `100`<br>`request-method`: `7`<br>`referer`: `70`|
 |`show-full-string`|If a string is longer than its maximum length as defined above, this determines how the full string can be viewed. Supported values:<br>&nbsp;&nbsp;&nbsp;`hover`: Show the full string when hovering over the truncated string<br>&nbsp;&nbsp;&nbsp;`click`: Show the full string in an alert (requires JavaScript)<br>&nbsp;&nbsp;&nbsp;`none`: Do not show the full string|`hover` for each|
 

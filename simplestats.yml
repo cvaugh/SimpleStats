@@ -29,35 +29,6 @@ whois-tool: "https://iplocation.io/ip/<address>"
 
 # If true, internal requests from a loopback address (i.e. 127.0.0.1 or ::1) will be ignored.
 ignore-internal: true
-
-output-sections:
-  generated-date: true
-  first-visit: true
-  latest-visit: true
-  overall-visitors: true
-  overall-visits: true
-  overall-bandwidth: true
-  yearly-rows: true
-  yearly-avg-visitors: true
-  yearly-avg-visits: true
-  yearly-avg-bandwidth: true
-  monthly-rows: true
-  monthly-avg-visitors: true
-  monthly-avg-visits: true
-  monthly-avg-bandwidth: true
-  day-of-month-rows: true
-  day-of-month-avg-visits: true
-  day-of-month-avg-bandwidth: true
-  days-of-week-rows: true
-  hourly-rows: true
-  ip-rows: true
-  users-rows: true
-  agents-rows: true
-  pages-rows: true
-  referers-rows: true
-  responses-rows: true
-  full-log-rows: false
-  footer: true
   
 # Truncate long strings after this many characters.
 # Set to 0 to disable truncation.
