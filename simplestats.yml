@@ -36,6 +36,7 @@ truncate:
   user-agent: 100
   request-url: 100
   request-method: 7
+  request-protocol: 8
   referer: 70
 
 # If a string is longer than the value defined above, this determines how the full string
@@ -47,4 +48,5 @@ show-full-string:
   user-agent: hover
   request-url: hover
   request-method: hover
+  request-protocol: hover
   referer: hover

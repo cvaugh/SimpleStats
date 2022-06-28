@@ -287,19 +287,6 @@ fn get_part(key: &str, parts: &Vec<&str>, keys: &Vec<&str>) -> String {
 }
 
 fn write_output(entries: &Vec<Entry>, log_keys: &Vec<&str>, config: &Yaml) {
-    let supported_keys: Vec<&str> = vec![
-        "%v",
-        "%p",
-        "%h",
-        "%u",
-        "%t",
-        "%r",
-        "%>s",
-        "%O",
-        "%{Referer}i",
-        "%{User-Agent}i",
-        "%D",
-    ];
     let sections: HashMap<&str, Vec<&str>> = HashMap::from([
         ("generated-date", vec![]),
         ("header", vec!["%t"]),
@@ -318,13 +305,6 @@ fn write_output(entries: &Vec<Entry>, log_keys: &Vec<&str>, config: &Yaml) {
         ("time-taken-table", vec!["%D"]),
         ("footer", vec![]),
     ]);
-    for key in log_keys {
-        if supported_keys.contains(&key) {
-            println!("Found supported key: {} ({})", key, get_key_name(key));
-        } else {
-            println!("Unsupported key: {} ({})", key, get_key_name(key));
-        }
-    }
     let mut template =
         String::from(std::str::from_utf8(include_bytes!("templates/main.html")).unwrap());
     'outer: for (key, value) in sections {
@@ -786,7 +766,7 @@ fn get_pages_table(entries: &Vec<Entry>, total_size: usize, config: &Yaml) -> St
                 count.1,
                 truncate_string(get_or_none(&split[0]).substring(0, 10), "request-method", config),
                 (split.len() > 1).then(|| truncate_string(split[1], "request-url", config)).unwrap_or(String::from("(none)")),
-                (split.len() > 2).then(|| split[2]).unwrap_or("(none)"),
+                truncate_string((split.len() > 2).then(|| split[2]).unwrap_or("(none)"), "request-protocol", config),
                 count.0,
                 format_percent(count.0 as usize, entries.len()),
                 human_readable_bytes(bw[&request]),
@@ -861,9 +841,11 @@ fn get_responses_table(entries: &Vec<Entry>, total_size: usize) -> String {
 }
 
 fn get_time_taken_table(entries: &Vec<Entry>) -> String {
+    let mut sum = 0i64;
     let mut times: LinkedHashMap<String, i32> = LinkedHashMap::new();
     for entry in entries {
         let t = entry.time_to_serve_us;
+        sum += t;
         if t < 100i64 {
             times.insert(
                 String::from("&lt; 100"),
@@ -914,7 +896,9 @@ fn get_time_taken_table(entries: &Vec<Entry>) -> String {
     let template = String::from(
         std::str::from_utf8(include_bytes!("templates/time-taken-table.html")).unwrap(),
     );
-    return template.replace("{{rows}}", &lines.join(""));
+    return template
+        .replace("{{rows}}", &lines.join(""))
+        .replace("{{avg}}", &(sum as usize / entries.len()).to_string());
 }
 
 fn get_full_log(entries: &Vec<Entry>, log_keys: &Vec<&str>, config: &Yaml) -> String {
