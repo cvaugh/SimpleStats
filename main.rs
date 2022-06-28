@@ -478,7 +478,7 @@ fn get_yearly_table(entries: &Vec<Entry>, total_size: usize) -> String {
             format_percent(sizes[&year], total_size)
         ));
     }
-    return format_table_vvb_avg("Yearly", &lines.join(""), "%Y", entries);
+    return format_table_vvb_avg("Yearly", "Year", &lines.join(""), "%Y", entries);
 }
 
 fn get_monthly_table(entries: &Vec<Entry>, total_size: usize) -> String {
@@ -517,7 +517,7 @@ fn get_monthly_table(entries: &Vec<Entry>, total_size: usize) -> String {
             format_percent(sizes[&month], total_size)
         ));
     }
-    return format_table_vvb_avg("Monthly", &lines.join(""), "%m", entries);
+    return format_table_vvb_avg("Monthly", "Month", &lines.join(""), "%m", entries);
 }
 
 fn get_day_of_month_table(entries: &Vec<Entry>, total_size: usize) -> String {
@@ -546,7 +546,7 @@ fn get_day_of_month_table(entries: &Vec<Entry>, total_size: usize) -> String {
             format_percent(sizes[&day], total_size)
         ));
     }
-    return format_table_vb_avg("Day", &lines.join(""), "%Y", entries);
+    return format_table_vb_avg("Days of month", "Day", &lines.join(""), "%Y", entries);
 }
 
 fn get_day_of_week_table(entries: &Vec<Entry>, total_size: usize) -> String {
@@ -576,7 +576,7 @@ fn get_day_of_week_table(entries: &Vec<Entry>, total_size: usize) -> String {
             format_percent(sizes[&day], total_size)
         ));
     }
-    return format_table_vb("Day", &lines.join(""));
+    return format_table_vb("Days of week", "Day", &lines.join(""));
 }
 
 fn get_hourly_table(entries: &Vec<Entry>, total_size: usize) -> String {
@@ -614,7 +614,7 @@ fn get_hourly_table(entries: &Vec<Entry>, total_size: usize) -> String {
             format_percent(sizes[&hour], total_size)
         ));
     }
-    return format_table_vb("Hour", &lines.join(""));
+    return format_table_vb("Hourly", "Hour", &lines.join(""));
 }
 
 fn get_ip_table(entries: &Vec<Entry>, total_size: usize, config: &Yaml) -> String {
@@ -916,10 +916,17 @@ fn get_footer() -> String {
     ));
 }
 
-fn format_table_vvb_avg(header: &str, rows: &str, date_key: &str, entries: &Vec<Entry>) -> String {
+fn format_table_vvb_avg(
+    title: &str,
+    header: &str,
+    rows: &str,
+    date_key: &str,
+    entries: &Vec<Entry>,
+) -> String {
     let template =
         String::from(std::str::from_utf8(include_bytes!("templates/table-vvb-avg.html")).unwrap());
     return template
+        .replace("{{title}}", title)
         .replace("{{key}}", header)
         .replace("{{rows}}", rows)
         .replace("{{avg-visitors}}", &get_average_visitors(entries, date_key))
@@ -930,10 +937,17 @@ fn format_table_vvb_avg(header: &str, rows: &str, date_key: &str, entries: &Vec<
         );
 }
 
-fn format_table_vb_avg(header: &str, rows: &str, date_key: &str, entries: &Vec<Entry>) -> String {
+fn format_table_vb_avg(
+    title: &str,
+    header: &str,
+    rows: &str,
+    date_key: &str,
+    entries: &Vec<Entry>,
+) -> String {
     let template =
         String::from(std::str::from_utf8(include_bytes!("templates/table-vb-avg.html")).unwrap());
     return template
+        .replace("{{title}}", title)
         .replace("{{key}}", header)
         .replace("{{rows}}", rows)
         .replace("{{avg-visits}}", &get_average_visits(entries, date_key))
@@ -943,10 +957,11 @@ fn format_table_vb_avg(header: &str, rows: &str, date_key: &str, entries: &Vec<E
         );
 }
 
-fn format_table_vb(header: &str, rows: &str) -> String {
+fn format_table_vb(title: &str, header: &str, rows: &str) -> String {
     let template =
         String::from(std::str::from_utf8(include_bytes!("templates/table-vb.html")).unwrap());
     return template
+        .replace("{{title}}", title)
         .replace("{{key}}", header)
         .replace("{{rows}}", rows);
 }
