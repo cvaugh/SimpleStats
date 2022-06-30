@@ -36,6 +36,7 @@ truncate:
   user-agent: 100
   request-url: 100
   request-filename: 100
+  request-query: 100
   request-method: 7
   request-protocol: 8
   referer: 70
@@ -49,6 +50,7 @@ show-full-string:
   user-agent: hover
   request-url: hover
   request-filename: hover
+  request-query: hover
   request-method: hover
   request-protocol: hover
   referer: hover

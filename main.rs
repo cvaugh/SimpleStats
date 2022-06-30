@@ -300,7 +300,8 @@ fn write_output(entries: &Vec<Entry>, log_keys: &Vec<&str>, config: &Yaml) {
         ("users-table", vec!["%u", "%t", "%O"]),
         ("user-agent-table", vec!["%{User-Agent}i", "%t", "%O", "%h"]),
         ("pages-table", vec!["%r", "%O", "%v"]),
-        ("files-table", vec!["%f", "%O", "%v"]),
+        ("files-table", vec!["%f", "%O", "%t"]),
+        ("queries-table", vec!["%q"]),
         ("referers-table", vec!["%{Referer}i", "%O"]),
         ("responses-table", vec!["%>s", "%O"]),
         ("time-taken-table", vec!["%D"]),
@@ -378,6 +379,9 @@ fn get_output(key: &str, entries: &Vec<Entry>, log_keys: &Vec<&str>, config: &Ya
         }
         "files-table" => {
             return get_files_table(entries, total_size, config);
+        }
+        "queries-table" => {
+            return get_queries_table(entries, config);
         }
         "referers-table" => {
             return get_referers_table(entries, total_size, config);
@@ -825,6 +829,29 @@ fn get_files_table(entries: &Vec<Entry>, total_size: usize, config: &Yaml) -> St
     return template.replace("{{rows}}", &lines.join(""));
 }
 
+fn get_queries_table(entries: &Vec<Entry>, config: &Yaml) -> String {
+    let mut unique: LinkedHashMap<String, i32> = LinkedHashMap::new();
+    for entry in entries {
+        unique.insert(
+            entry.query.clone(),
+            *unique.get(&entry.query).unwrap_or(&0i32) + 1,
+        );
+    }
+    unique = sort_map(unique);
+    let mut lines: Vec<String> = Vec::new();
+    for (query, count) in unique {
+        lines.push(format!(
+            "<tr><td class=\"ss-page-url\">{}</td><td>{}</td><td>{}</td></tr>\n",
+            truncate_string(get_or_none(&query), "request-query", config),
+            count,
+            format_percent(count as usize, entries.len()),
+        ));
+    }
+    let template =
+        String::from(std::str::from_utf8(include_bytes!("templates/queries-table.html")).unwrap());
+    return template.replace("{{rows}}", &lines.join(""));
+}
+
 fn get_referers_table(entries: &Vec<Entry>, total_size: usize, config: &Yaml) -> String {
     let mut unique: LinkedHashMap<String, i32> = LinkedHashMap::new();
     let mut bw: HashMap<String, usize> = HashMap::new();
@@ -1142,6 +1169,7 @@ fn sort_map_tuple(map: LinkedHashMap<String, (i32, &str)>) -> LinkedHashMap<Stri
 fn get_or_none(key: &str) -> &str {
     match key {
         "-" => return "(none)",
+        "" => return "(none)",
         _ => return key,
     }
 }
