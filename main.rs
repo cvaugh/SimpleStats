@@ -300,6 +300,7 @@ fn write_output(entries: &Vec<Entry>, log_keys: &Vec<&str>, config: &Yaml) {
         ("users-table", vec!["%u", "%t", "%O"]),
         ("user-agent-table", vec!["%{User-Agent}i", "%t", "%O", "%h"]),
         ("pages-table", vec!["%r", "%O", "%v"]),
+        ("files-table", vec!["%f", "%O", "%v"]),
         ("referers-table", vec!["%{Referer}i", "%O"]),
         ("responses-table", vec!["%>s", "%O"]),
         ("time-taken-table", vec!["%D"]),
@@ -374,6 +375,9 @@ fn get_output(key: &str, entries: &Vec<Entry>, log_keys: &Vec<&str>, config: &Ya
         }
         "pages-table" => {
             return get_pages_table(entries, total_size, config);
+        }
+        "files-table" => {
+            return get_files_table(entries, total_size, config);
         }
         "referers-table" => {
             return get_referers_table(entries, total_size, config);
@@ -776,6 +780,48 @@ fn get_pages_table(entries: &Vec<Entry>, total_size: usize, config: &Yaml) -> St
     }
     let template =
         String::from(std::str::from_utf8(include_bytes!("templates/pages-table.html")).unwrap());
+    return template.replace("{{rows}}", &lines.join(""));
+}
+
+fn get_files_table(entries: &Vec<Entry>, total_size: usize, config: &Yaml) -> String {
+    let mut unique: LinkedHashMap<String, i32> = LinkedHashMap::new();
+    let mut bw: HashMap<String, usize> = HashMap::new();
+    let mut dates: HashMap<String, Vec<DateTime<FixedOffset>>> = HashMap::new();
+    for entry in entries {
+        unique.insert(
+            entry.filename.clone(),
+            *unique.get(&entry.filename).unwrap_or(&0i32) + 1,
+        );
+        bw.insert(
+            entry.filename.clone(),
+            *bw.get(&entry.filename).unwrap_or(&0usize) + entry.size as usize,
+        );
+        if !dates.contains_key(&entry.filename) {
+            let vec: Vec<DateTime<FixedOffset>> = Vec::new();
+            dates.insert(entry.filename.clone(), vec);
+        }
+        dates.get_mut(&entry.filename).unwrap().push(entry.time);
+    }
+    unique = sort_map(unique);
+    let mut lines: Vec<String> = Vec::new();
+    for (filename, count) in unique {
+        dates
+            .get_mut(&filename)
+            .unwrap()
+            .sort_by_key(|k| k.timestamp_millis());
+        lines.push(format!(
+            "<tr><td class=\"ss-page-url\">{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
+            truncate_string(&filename, "request-filename", config),
+            count,
+            format_percent(count as usize, entries.len()),
+            human_readable_bytes(bw[&filename]),
+            format_percent(bw[&filename], total_size),
+            human_readable_bytes((bw[&filename] / entries.len()) as usize),
+            format_date_config(&dates[&filename][dates[&filename].len() - 1], config)
+        ));
+    }
+    let template =
+        String::from(std::str::from_utf8(include_bytes!("templates/files-table.html")).unwrap());
     return template.replace("{{rows}}", &lines.join(""));
 }
 
