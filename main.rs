@@ -765,7 +765,7 @@ fn get_pages_table(entries: &Vec<Entry>, total_size: usize, config: &Yaml) -> St
                 "<tr><td>{}</td><td>{}</td><td class=\"ss-page-url\">{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
                 count.1,
                 truncate_string(get_or_none(&split[0]).substring(0, 10), "request-method", config),
-                (split.len() > 1).then(|| truncate_string(split[1], "request-url", config)).unwrap_or(String::from("(none)")),
+                truncate_string((split.len() > 1).then(|| split[1]).unwrap_or("(none)"), "request-url", config),
                 truncate_string((split.len() > 2).then(|| split[2]).unwrap_or("(none)"), "request-protocol", config),
                 count.0,
                 format_percent(count.0 as usize, entries.len()),
