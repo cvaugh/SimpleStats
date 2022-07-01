@@ -18,7 +18,7 @@ The program's configuration file can be found at `~/.config/simplestats/simplest
 |`ignore-internal`|If true, internal requests from a loopback address (i.e. `127.0.0.1` or `::1`) will be ignored.|`true`|
 |`include-full-log`|If true, a table consisting of every entry in all of the access logs read by the program will be placed at the end of the output file. Not recommended for very large logs.|`false`|
 |`truncate`|Truncate long strings after this many characters. Set to 0 to disable truncation.|`user-agent`: `100`<br>`request-url`: `100`<br>`request-method`: `7`<br>`request-protocol`: `8`<br>`referer`: `70`<br>`full-log`: `50`|
-|`show-full-string`|If a string is longer than its maximum length as defined above, this determines how the full string can be viewed. Supported values:<br>&nbsp;&nbsp;&nbsp;`hover`: Show the full string when hovering over the truncated string<br>&nbsp;&nbsp;&nbsp;`click`: Show the full string in an alert (requires JavaScript)<br>&nbsp;&nbsp;&nbsp;`none`: Do not show the full string|`click` for `full-log`<br>`hover` for all others|
+|`show-full-string`|If a string is longer than its maximum length as defined above, this determines how the full string can be viewed. Supported values:<br>&nbsp;&nbsp;&nbsp;`hover`: Show the full string when hovering over the truncated string<br>&nbsp;&nbsp;&nbsp;`click`: Show the full string in an alert (requires JavaScript)<br>&nbsp;&nbsp;&nbsp;`none`: Do not show the full string|`user-agent`: `hover`<br>`request-url`: `hover`<br>`request-method`: `hover`<br>`request-protocol`: `hover`<br>`referer`: `hover`<br>`full-log`: `click`|
 |`truncate-append`|This string will be appended after strings that have been truncated. Remove or leave blank to disable.|`"..."`|
 
 ## Command line arguments
