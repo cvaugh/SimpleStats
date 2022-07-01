@@ -7,8 +7,21 @@
     <style>
 body {
   font-family: sans-serif;
+  font-size: 9pt;
   background-color: #FAFAFA;
   margin: 1rem 2rem;
+}
+
+h1 {
+    font-size: 26pt;
+}
+
+h2 {
+    font-size: 20pt;
+}
+
+h3 {
+    font-size: 14pt;
 }
 
 th {
@@ -44,13 +57,30 @@ td.ss-user-agent, td.ss-page-url, td.ss-referer {
 }
 
 .ss-footer {
-  font-size: smaller;
+  font-size: 8pt;
   font-family: monospace;
+}
+
+table.full-log {
+    font-size: 5pt;
+    border-collapse: collapse;;
+}
+
+table.full-log tr th, table.full-log tr td {
+    margin: 1px;
+    padding: 1px;
+    border: 1px solid rgba(34, 34, 34, 0.3);
+    white-space: nowrap;
+    text-align: left;
+}
+
+.truncated {
+    text-decoration: underline dotted #424242;
 }
     </style>
   </head>
   <body>
-    <h1>Apache Statistics ({{generated-date}})</h1>
+<h1>Apache Statistics ({{generated-date}})</h1>
 <h2>Summary</h2>
 {{overall}}
 <br>
@@ -74,6 +104,7 @@ td.ss-user-agent, td.ss-page-url, td.ss-referer {
 {{responses-table}}
 {{time-taken-table}}
 <br>
+{{full-log}}
 <p>{{footer}}</p>
   </body>
 </html>

@@ -318,8 +318,14 @@ fn write_output(entries: &Vec<Entry>, log_keys: &Vec<&str>, config: &Yaml) {
         }
         template = template.replace(
             &format!("{{{{{}}}}}", key),
-            &get_output(key, entries, &log_keys, &config),
+            &get_output(key, entries, &config),
         );
+    }
+
+    if config["include-full-log"].as_bool().unwrap_or(false) {
+        template = template.replace("{{full-log}}", &get_full_log(entries, &log_keys, &config));
+    } else {
+        template = template.replace("{{full-log}}", "");
     }
 
     let output = shellexpand::tilde(&config["output-file"].as_str().unwrap()).to_string();
@@ -335,7 +341,7 @@ fn write_output(entries: &Vec<Entry>, log_keys: &Vec<&str>, config: &Yaml) {
     }
 }
 
-fn get_output(key: &str, entries: &Vec<Entry>, log_keys: &Vec<&str>, config: &Yaml) -> String {
+fn get_output(key: &str, entries: &Vec<Entry>, config: &Yaml) -> String {
     let mut total_size = 0usize;
     for entry in entries {
         total_size += entry.size as usize;
@@ -391,9 +397,6 @@ fn get_output(key: &str, entries: &Vec<Entry>, log_keys: &Vec<&str>, config: &Ya
         }
         "time-taken-table" => {
             return get_time_taken_table(entries);
-        }
-        "full-log" => {
-            return get_full_log(entries, log_keys, config);
         }
         "footer" => {
             return get_footer();
@@ -732,7 +735,7 @@ fn get_user_agent_table(entries: &Vec<Entry>, total_size: usize, config: &Yaml) 
             .sort_by_key(|k| k.timestamp_millis());
         lines.push(format!(
                 "<tr><td class=\"ss-user-agent\">{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
-                truncate_string(&agent, "user-agent", config),
+                truncate_string(&agent, "user-agent", config, true),
                 unique_visitors.len(),
                 count,
                 format_percent(count as usize, entries.len()),
@@ -772,9 +775,9 @@ fn get_pages_table(entries: &Vec<Entry>, total_size: usize, config: &Yaml) -> St
         lines.push(format!(
                 "<tr><td>{}</td><td>{}</td><td class=\"ss-page-url\">{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
                 count.1,
-                truncate_string(get_or_none(&split[0]).substring(0, 10), "request-method", config),
-                truncate_string((split.len() > 1).then(|| split[1]).unwrap_or("(none)"), "request-url", config),
-                truncate_string((split.len() > 2).then(|| split[2]).unwrap_or("(none)"), "request-protocol", config),
+                truncate_string(get_or_none(&split[0]).substring(0, 10), "request-method", config, true),
+                truncate_string((split.len() > 1).then(|| split[1]).unwrap_or("(none)"), "request-url", config, true),
+                truncate_string((split.len() > 2).then(|| split[2]).unwrap_or("(none)"), "request-protocol", config, true),
                 count.0,
                 format_percent(count.0 as usize, entries.len()),
                 human_readable_bytes(bw[&request]),
@@ -815,7 +818,7 @@ fn get_files_table(entries: &Vec<Entry>, total_size: usize, config: &Yaml) -> St
             .sort_by_key(|k| k.timestamp_millis());
         lines.push(format!(
             "<tr><td class=\"ss-page-url\">{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
-            truncate_string(&filename, "request-filename", config),
+            truncate_string(&filename, "request-filename", config, true),
             count,
             format_percent(count as usize, entries.len()),
             human_readable_bytes(bw[&filename]),
@@ -842,7 +845,7 @@ fn get_queries_table(entries: &Vec<Entry>, config: &Yaml) -> String {
     for (query, count) in unique {
         lines.push(format!(
             "<tr><td class=\"ss-page-url\">{}</td><td>{}</td><td>{}</td></tr>\n",
-            truncate_string(get_or_none(&query), "request-query", config),
+            truncate_string(get_or_none(&query), "request-query", config, true),
             count,
             format_percent(count as usize, entries.len()),
         ));
@@ -870,7 +873,7 @@ fn get_referers_table(entries: &Vec<Entry>, total_size: usize, config: &Yaml) ->
     for (referer, count) in unique {
         lines.push(format!(
             "<tr><td class=\"ss-referer\">{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
-            truncate_string(&referer, "referer", config),
+            truncate_string(&referer, "referer", config, true),
             count,
             format_percent(count as usize, entries.len()),
             human_readable_bytes(bw[&referer]),
@@ -975,54 +978,31 @@ fn get_time_taken_table(entries: &Vec<Entry>) -> String {
 }
 
 fn get_full_log(entries: &Vec<Entry>, log_keys: &Vec<&str>, config: &Yaml) -> String {
+    let mut header: Vec<String> = Vec::new();
     let mut lines: Vec<String> = Vec::new();
     for key in log_keys {
-        lines.push(format!("<td>{}</td>", get_key_name(&key)));
+        header.push(format!("<th>{}</th>", get_key_name(&key)));
     }
-    lines.push(String::from("</tr>\n"));
     for entry in entries {
-        lines.push(format!(
-            "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td>
-        <td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td>
-        <td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}
-        </td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
-            &entry.canonical_server_name,
-            &entry.port,
-            &entry.ip,
-            &entry.remote_logname,
-            &entry.user,
-            format_date_config(&entry.time, config),
-            &entry.request,
-            &entry.response,
-            human_readable_bytes(entry.size as usize),
-            &entry.referer,
-            &entry.agent,
-            &entry.client_ip,
-            &entry.local_ip,
-            human_readable_bytes(entry.size_excl_headers as usize),
-            human_readable_bytes(entry.size_incl_headers as usize),
-            &entry.time_to_serve_us,
-            &entry.filename,
-            &entry.request_protocol,
-            &entry.keepalive_requests,
-            if entry.error_log_id == -1 {
-                String::from("(none)")
-            } else {
-                entry.error_log_id.to_string()
-            },
-            &entry.request_method,
-            &entry.child_pid,
-            &entry.url_excl_query,
-            &entry.query,
-            &entry.handler,
-            &entry.time_to_serve_s,
-            &entry.server_name,
-            get_connection_status(entry.connection_status),
-            human_readable_bytes(entry.bytes_received as usize),
-            human_readable_bytes(entry.bytes_transferred as usize)
-        ));
+        lines.push(String::from("<tr>"));
+        for key in log_keys {
+            lines.push(format!(
+                "<td>{}</td>",
+                truncate_string(
+                    &get_key_value(key, entry, config),
+                    "full-log",
+                    config,
+                    false
+                )
+            ));
+        }
+        lines.push(String::from("</tr>\n"));
     }
-    return format!("<table><tr>{}</table>", lines.join(""));
+    return format!(
+        "<h2>Full Log</h2>\n<table class=\"full-log\"><tr>{}</tr>{}</table>",
+        header.join(""),
+        lines.join("")
+    );
 }
 
 fn get_footer() -> String {
@@ -1118,10 +1098,52 @@ fn get_key_name(key: &str) -> &str {
         "%I" => return "Bytes Received",
         "%O" => return "Bytes Sent",
         "%S" => return "Bytes Transferred",
-        _ => {
-            return "?";
-        }
+        _ => return "?",
     }
+}
+
+fn get_key_value(key: &str, entry: &Entry, config: &Yaml) -> String {
+    return format!(
+        "{}",
+        match key {
+            "%a" => entry.client_ip.clone(),
+            "%A" => entry.local_ip.clone(),
+            "%B" => human_readable_bytes(entry.size_excl_headers as usize),
+            "%b" => human_readable_bytes(entry.size_incl_headers as usize),
+            "%D" => entry.time_to_serve_us.to_string(),
+            "%f" => entry.filename.clone(),
+            "%h" => entry.ip.clone(),
+            "%H" => entry.request_protocol.clone(),
+            "%{Referer}i" => entry.referer.clone(),
+            "%{User-Agent}i" => entry.agent.clone(),
+            "%k" => entry.keepalive_requests.to_string(),
+            "%l" => entry.remote_logname.clone(),
+            "%L" =>
+                if entry.error_log_id == -1 {
+                    String::from("(none)")
+                } else {
+                    entry.error_log_id.to_string()
+                },
+            "%m" => entry.request_method.clone(),
+            "%p" => entry.port.to_string(),
+            "%P" => entry.child_pid.to_string(),
+            "%q" => entry.query.clone(),
+            "%r" => entry.request.clone(),
+            "%R" => entry.handler.clone(),
+            "%>s" => entry.response.clone(),
+            "%t" => format_date_config(&entry.time, config),
+            "%T" => entry.time_to_serve_s.to_string(),
+            "%u" => entry.user.clone(),
+            "%U" => entry.url_excl_query.clone(),
+            "%v" => entry.canonical_server_name.clone(),
+            "%V" => entry.server_name.clone(),
+            "%X" => get_connection_status(entry.connection_status),
+            "%I" => human_readable_bytes(entry.bytes_received as usize),
+            "%O" => human_readable_bytes(entry.size as usize),
+            "%S" => human_readable_bytes(entry.bytes_transferred as usize),
+            _ => String::from("?"),
+        }
+    );
 }
 
 fn human_readable_bytes(bytes: usize) -> String {
@@ -1252,10 +1274,11 @@ fn get_connection_status(status: char) -> String {
     }
 }
 
-fn truncate_string(s: &str, key: &str, config: &Yaml) -> String {
-    let truncate = config["truncate"][key].as_i64().unwrap() as usize;
+fn truncate_string(s: &str, key: &str, config: &Yaml, or_none: bool) -> String {
+    let truncate = config["truncate"][key].as_i64().unwrap_or(0) as usize;
     if truncate != 0usize && s.len() > truncate {
         let truncated = &get_or_none(&s)[..truncate];
+        let append = config["truncate-append"].as_str().unwrap_or("");
         match config["show-full-string"][key]
             .as_str()
             .unwrap()
@@ -1264,24 +1287,27 @@ fn truncate_string(s: &str, key: &str, config: &Yaml) -> String {
         {
             "hover" => {
                 return format!(
-                    "<abbr title=\"{}\">{}...</abbr>",
+                    "<span class=\"truncated\" title=\"{}\">{}{}</span>",
                     s.replace("\"", "&quot;").replace("\\", "&bsol;"),
-                    truncated
+                    truncated,
+                    append
                 );
             }
             "click" => {
                 return format!(
-                    "<abbr onclick='javascript:prompt(\"Full string:\", \"{}\");'
-                        title=\"Click to display full string\">{}...</abbr>",
+                    "<span class=\"truncated\" onclick='javascript:prompt(\"Full string:\", \"{}\");'
+                        title=\"Click to display full string\">{}{}</span>",
                     s.replace("\"", "&quot;").replace("\\", "&bsol;"),
-                    truncated
+                    truncated, append
                 );
             }
             _ => {
-                return format!("{}...", truncated);
+                return format!("{}{}", truncated, append);
             }
         }
-    } else {
+    } else if or_none {
         return get_or_none(s).to_string();
+    } else {
+        return s.to_string();
     }
 }
