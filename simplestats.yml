@@ -34,8 +34,8 @@ ignore-internal: true
 # will be placed at the end of the output file. Not recommended for very large logs.
 include-full-log: false
 
-# If this is true, the program will print a message to the standard error stream if a
-# malformed log entry is encountered.
+# If true, the program will print a message to the standard error stream if a malformed log
+# entry is encountered.
 notify-on-malformed: false
   
 # Truncate long strings after this many characters.
