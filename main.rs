@@ -753,7 +753,7 @@ fn get_user_agent_table(entries: &Vec<Entry>, total_size: usize, config: &Yaml) 
         lines.push(format!(
                 "<tr><td class=\"ss-user-agent\">{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
                 truncate_string(&agent, "user-agent", config, true),
-                unique_visitors.len(),
+                unique_visitors.get(&agent).unwrap().len(),
                 count,
                 format_percent(count as usize, entries.len()),
                 human_readable_bytes(bw[&agent]),
