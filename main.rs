@@ -137,9 +137,12 @@ fn read_log(path: &Path, compressed: bool, log_keys: &Vec<&str>, config: &Yaml) 
             if line.chars().count() == 0 {
                 continue;
             }
-            let entry = parse_line(&line, &log_keys, config);
-            if !local_regex.is_match(&entry.ip) {
-                entries.push(entry);
+            let entry_opt = parse_line(&line, &log_keys, config);
+            if entry_opt.is_some() {
+                let entry = entry_opt.unwrap();
+                if !local_regex.is_match(&entry.ip) {
+                    entries.push(entry);
+                }
             }
             line.clear();
         }
@@ -156,9 +159,12 @@ fn read_log(path: &Path, compressed: bool, log_keys: &Vec<&str>, config: &Yaml) 
                 if line.chars().count() == 0 {
                     continue;
                 }
-                let entry = parse_line(&line, &log_keys, config);
-                if !local_regex.is_match(&entry.ip) {
-                    entries.push(entry);
+                let entry_opt = parse_line(&line, &log_keys, config);
+                if entry_opt.is_some() {
+                    let entry = entry_opt.unwrap();
+                    if !local_regex.is_match(&entry.ip) {
+                        entries.push(entry);
+                    }
                 }
             }
         }
@@ -166,7 +172,7 @@ fn read_log(path: &Path, compressed: bool, log_keys: &Vec<&str>, config: &Yaml) 
     return entries;
 }
 
-fn parse_line(line: &str, log_keys: &Vec<&str>, config: &Yaml) -> Entry {
+fn parse_line(line: &str, log_keys: &Vec<&str>, config: &Yaml) -> Option<Entry> {
     let keys_with_colons: Vec<&str> = vec!["%h", "%a", "%A", "%U", "%q", "%f"];
     let mut indices_with_colons: Vec<usize> = Vec::new();
     let mut i = 0usize;
@@ -177,7 +183,18 @@ fn parse_line(line: &str, log_keys: &Vec<&str>, config: &Yaml) -> Entry {
         i += 1;
     }
     let parts = extract_line_parts(line, line.chars().collect(), indices_with_colons);
-    return parse_parts(&parts, log_keys, config);
+    if parts.len() != log_keys.len() {
+        if config["notify-on-malformed"].as_bool().unwrap_or(false) {
+            eprintln!(
+                "Malformed log line (expected {} parts, found {}): {}",
+                log_keys.len(),
+                parts.len(),
+                line
+            );
+        }
+        return None;
+    }
+    return Some(parse_parts(&parts, log_keys, config));
 }
 
 fn extract_line_parts(
