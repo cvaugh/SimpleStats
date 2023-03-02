@@ -2,7 +2,7 @@
 
 A tool for generating easy-to-read statistics for your Apache web server.
 
-### This project has been superseded by [https://github.com/cvaugh/jstats](cvaugh/jstats)
+### This project has been superseded by [cvaugh/jstats](https://github.com/cvaugh/jstats)
 
 ## Configuration
 
